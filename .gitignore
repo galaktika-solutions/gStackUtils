@@ -1,0 +1,8 @@
+/.secret.env
+/.env
+/.venv
+*.egg-info
+__pycache__
+/docs/build
+/.coverage
+/coverage_report
