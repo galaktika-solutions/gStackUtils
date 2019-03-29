@@ -33,8 +33,9 @@ class ConfigField:
         val = self.from_storage(val)
         return self.validate(val)
 
-    def set(self, value):
-        val = self.validate(value)
+    def set(self, value, no_validate=False):
+        if not no_validate:
+            val = self.validate(value)
         val = self.to_storage(value)
         self.root_storage.write(self.name, val)
 
@@ -53,13 +54,18 @@ class ConfigField:
         raise NotImplementedError()
 
     def human_readable(self, value):
-        return repr(value)
+        raise NotImplementedError()
 
     def validate(self, value):
         return value
 
 
-class SecretString(ConfigField):
+class SecretMixin:
+    def human_readable(self, value):
+        return "**********"
+
+
+class SecretString(SecretMixin, ConfigField):
     def __init__(self, min_length=0, max_length=None, **kwargs):
         self.min_length = min_length
         self.max_length = max_length
@@ -85,11 +91,8 @@ class SecretString(ConfigField):
     def from_storage(self, value):
         return value.decode()
 
-    def to_storage(self, value):
+    def to_storage(selfhuman_readable, value):
         return value.encode()
-
-    def human_readable(self, value):
-        return value
 
 
 class EnvString(SecretString):
@@ -99,3 +102,6 @@ class EnvString(SecretString):
 
     def prepare(self):
         pass
+
+    def human_readable(self, value):
+        return value

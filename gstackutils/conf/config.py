@@ -2,6 +2,8 @@ import os
 import importlib
 import inspect
 
+import click
+
 from ..helpers import path_check
 from .field import ConfigField
 from ..exceptions import ImproperlyConfigured
@@ -10,6 +12,18 @@ from .exceptions import (
     ConfigMissingError,
     ValidationError
 )
+
+
+FLAGS = {
+    # "OK": ("●", "green"),
+    # "DEF": ("○", "green"),
+    # "MISS": ("━", "red"),
+    # "INV": ("✖", "red"),
+    "OK": (" ", "green"),
+    "DEF": (".", "green"),
+    "MISS": ("?", "red"),
+    "INV": ("!", "red"),
+}
 
 
 class Config:
@@ -44,7 +58,7 @@ class Config:
         mod = importlib.import_module(self.config_module)
 
         fields = []
-        field_names = set()
+        self.field_names = set()
 
         sections = [
             c for c in mod.__dict__.values()
@@ -61,15 +75,16 @@ class Config:
 
             section_instance = S(self)
             for field_name, field_instance in section_fields:
-                if field_name in field_names:
+                if field_name in self.field_names:
                     raise ImproperlyConfigured(
                         f"Config '{field_name}' was defined multiple times."
                     )
                 field_instance.setup_field(self, field_name)
                 fields.append((field_name, field_instance, section_instance))
-                field_names.add(field_name)
+                self.field_names.add(field_name)
 
         self.fields = fields
+        self.field_map = dict([(fn, (fi, si)) for fn, fi, si in self.fields])
         # instance._check_config()
 
     def inspect(self):
@@ -82,20 +97,30 @@ class Config:
                 value = field_instance.default
                 flag = "DEF"
             except ConfigMissingError:
-                value = "-"
+                value = ""
                 flag = "MISS"
             except ValidationError:
-                value = "-"
+                value = ""
                 flag = "INV"
             if flag in ("OK", "DEF"):
                 value = field_instance.human_readable(value)
             section_list = info.setdefault(section_instance.__class__.__name__, [])
             section_list.append((field_name, flag, value))
 
+        # find the max length of config names
+        max_name = max([len(x) for x in self.field_names])
+        # max_val = max([len(x[2]) for v in info.values() for x in v])
+
+        # output the result
         for k, v in info.items():
-            print(k)
+            click.secho(k, fg="yellow")
             for f in v:
-                print(f"    {f[0]} {f[1]} {f[2]}")
+                name = f[0]
+                symbol, color = FLAGS[f[1]]
+                # flag = click.style(symbol, fg=color)
+                flag = symbol
+                value = f[2]
+                click.echo(f"    {name:>{max_name}} {flag} {value}")
 
 
 class Section:
