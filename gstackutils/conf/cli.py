@@ -19,15 +19,12 @@ def inspect():
 @conf.command()
 @click.argument("name")
 @click.argument("value")
-def set(name, value):
-    conf = Config()
+@click.option('--no-validate', is_flag=True)
+def set(name, value, no_validate):
     try:
-        field, section = conf.field_map[name]
+        Config().set(name, value, no_validate=no_validate, from_string=True)
     except KeyError:
         raise click.ClickException(f"No such config: {name}")
-    _value = field.from_storage(value.encode())
-    try:
-        field.set(_value)
     except ValidationError as e:
         raise click.ClickException(e)
 
@@ -35,15 +32,12 @@ def set(name, value):
 @conf.command()
 @click.argument("name")
 def get(name):
-    conf = Config()
     try:
-        field, section = conf.field_map[name]
+        value = Config().get(name, root=True, as_string=True)
     except KeyError:
         raise click.ClickException(f"No such config: {name}")
-    try:
-        _value = field.get(root=True)
     except ValidationError as e:
         raise click.ClickException(e)
     except ConfigMissingError:
         raise click.ClickException("The config is not set and no default specified.")
-    sys.stdout.write(field.to_storage(_value).decode())
+    sys.stdout.write(value)

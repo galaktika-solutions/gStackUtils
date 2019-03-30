@@ -8,8 +8,8 @@ from gstackutils.conf.storage import (
     SecretStorage
 )
 from gstackutils.conf import EnvString, SecretString, Config
-from gstackutils.conf.exceptions import ConfigMissingError, ValidationError
-from gstackutils.exceptions import ImproperlyConfigured
+from gstackutils.conf import ConfigMissingError, ValidationError
+from gstackutils import ImproperlyConfigured
 
 
 class CleanConfTestCase(unittest.TestCase):
@@ -146,15 +146,16 @@ class TestEnvString(CleanConfTestCase):
 
 class TestSecretStrint(CleanConfTestCase):
     def test_prepare(self):
-        conffield = SecretString()
+        conffield = SecretString(services={"s": (1000,)})
         conffield.setup_field(self.config, "X")
         conffield.set("x")
-        conffield.prepare(uid=1000)
+        conffield.prepare(service="s")
         p = os.path.join(self.config.secret_dir, "X")
         with open(p, "r") as f:
             self.assertEqual(f.read(), "x")
         stat = os.stat(p)
         self.assertEqual(stat.st_uid, 1000)
+        self.assertEqual(stat.st_gid, 1000)
 
 
 class TestConfig(unittest.TestCase):
@@ -189,3 +190,26 @@ class TestConfig(unittest.TestCase):
         )
         # print(conf.fields)
         self.assertEqual(conf.env_file_path, ".env")
+
+    def test_prepare(self):
+        conf = Config(
+            config_module="gstack_conf",
+            env_file_path=".env",
+            secret_file_path=".secret.env",
+        )
+        conf.set("SAIS", "o", no_validate=True)
+        with self.assertRaises(ValidationError):
+            conf.prepare('test')
+
+        self.assertEqual(conf.get("ANIMAL"), "duck")
+
+        conf.set("SAIS", "something", no_validate=True)
+        conf.prepare("test")
+
+        conf = Config(
+            config_module="gstack_conf",
+            env_file_path=".env",
+            secret_file_path=".secret.env",
+            root_mode=False,
+        )
+        self.assertEqual(conf.get("SAIS"), "something")

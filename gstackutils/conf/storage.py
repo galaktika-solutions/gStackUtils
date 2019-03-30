@@ -85,7 +85,8 @@ class SecretStorage:
         except (FileNotFoundError, PermissionError):
             return None
 
-    def write(self, name, value, uid=0, gid=0, mode=0o400):
+    def write(self, name, value, uid=0, gid=None, mode=0o400):
+        gid = uid if gid is None else gid
         fn = os.path.join(self.dir, name)
         with open(fn, "wb") as f:
             f.write(value)

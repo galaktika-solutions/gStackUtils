@@ -1,5 +1,6 @@
 from .storage import EnvVarStorage, EnvFileStorage, SecretStorage, SecretFileStorage
 from .exceptions import ConfigMissingError, ValidationError, DefaultUsedException
+from ..exceptions import ImproperlyConfigured
 
 
 class NotSet:
@@ -15,7 +16,7 @@ class ConfigField:
         self.root_storage = None
 
     def setup_storage(self, config):
-        raise NotImplementedError()
+        raise NotImplementedError()  # pragma: no cover
 
     def setup_field(self, config, name):
         self.name = name
@@ -48,21 +49,50 @@ class ConfigField:
         self.app_storage.write(self.name, val, **kwargs)
 
     def from_storage(self, value):
-        raise NotImplementedError()
+        raise NotImplementedError()  # pragma: no cover
 
     def to_storage(self, value):
-        raise NotImplementedError()
+        raise NotImplementedError()  # pragma: no cover
 
     def human_readable(self, value):
-        raise NotImplementedError()
+        raise NotImplementedError()  # pragma: no cover
 
     def validate(self, value):
         return value
 
 
 class SecretMixin:
+    def __init__(self, services={}, **kwargs):
+        self.services = {}
+        for s, ugm in services.items():
+            if isinstance(ugm, (tuple, list)):
+                if len(ugm) == 0:
+                    self.services[s] = {}
+                elif len(ugm) == 1:
+                    self.services[s] = {"uid": ugm[0]}
+                elif len(ugm) == 2:
+                    self.services[s] = {"uid": ugm[0], "gid": ugm[1]}
+                else:
+                    self.services[s] = {"uid": ugm[0], "gid": ugm[1], "mode": ugm[2]}
+            elif isinstance(ugm, dict):
+                p = {}
+                for k in ["uid", "gid", "mode"]:
+                    if k in ugm:
+                        p[k] = ugm[k]
+                self.services[s] = p
+            else:
+                raise ImproperlyConfigured(
+                    "The `services` parameter must be a tuple, a list or a dict"
+                )
+        super().__init__(**kwargs)
+
     def human_readable(self, value):
         return "**********"
+
+    def prepare(self, **kwargs):
+        service = kwargs.get("service")
+        if service in self.services:
+            super().prepare(**self.services[service])
 
 
 class SecretString(SecretMixin, ConfigField):
@@ -100,7 +130,7 @@ class EnvString(SecretString):
         self.app_storage = EnvVarStorage()
         self.root_storage = EnvFileStorage(config.env_file_path)
 
-    def prepare(self):
+    def prepare(self, **kwargs):
         pass
 
     def human_readable(self, value):

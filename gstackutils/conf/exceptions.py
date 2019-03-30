@@ -8,3 +8,7 @@ class ValidationError(Exception):
 
 class DefaultUsedException(Exception):
     pass
+
+
+class PermissionDenied(Exception):
+    pass

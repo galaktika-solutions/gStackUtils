@@ -5,14 +5,18 @@ from click.testing import CliRunner
 
 from gstackutils.cli import cli
 from gstackutils.conf import Config
+from gstackutils import ImproperlyConfigured
 
 
-class TestEnvFileStoreage(unittest.TestCase):
+class BaseCLITetsCase(unittest.TestCase):
+    config_module = "gstack_conf"
+
     def setUp(self):
         os.chdir("tests/fixtures")
         os.makedirs(".git", exist_ok=True)
         os.environ["GSTACK_ENV_FILE"] = ".env"
         os.environ["GSTACK_SECRET_FILE"] = ".secret.env"
+        os.environ["GSTACK_CONFIG_MODULE"] = self.config_module
 
     def tearDown(self):
         if os.path.isdir(".git"):
@@ -27,14 +31,24 @@ class TestEnvFileStoreage(unittest.TestCase):
             os.rmdir(".files")
         os.chdir("../..")
 
+
+class TestCLI(BaseCLITetsCase):
     def test_simple(self):
         runner = CliRunner()
+        runner.invoke(cli, ["conf", "set", "ANIMAL", "dog"])
+        runner.invoke(cli, ["conf", "set", "--no-validate", "TIMES", "x"])
         result = runner.invoke(cli, ["conf", "inspect"])
         self.assertEqual(result.exit_code, 0)
         lines = result.output.splitlines()
         self.assertEqual(
             lines,
-            ['First', '    ANIMAL . duck', '      SAIS . **********', '     TIMES ? ']
+            [
+                'First',
+                '    ANIMAL   dog',
+                '      SAIS . **********',
+                '     TIMES ! ',
+                '     AFTER ? '
+            ]
         )
 
     def test_setget(self):
@@ -59,8 +73,14 @@ class TestEnvFileStoreage(unittest.TestCase):
             "Error: The config is not set and no default specified."
         )
 
-        config = Config()
-        field, _ = config.field_map["TIMES"]
-        field.set("x", no_validate=True)
+        runner.invoke(cli, ["conf", "set", "--no-validate", "TIMES", "x"])
         result = runner.invoke(cli, ["conf", "get", "TIMES"])
         self.assertEqual(result.stderr.strip(), "Error: Too short (1 < 5)")
+
+
+class TestBadCLI(BaseCLITetsCase):
+    config_module = "bad_conf"
+
+    def test_multidefined_fields(self):
+        with self.assertRaises(ImproperlyConfigured):
+            Config()

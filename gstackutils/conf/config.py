@@ -10,7 +10,8 @@ from ..exceptions import ImproperlyConfigured
 from .exceptions import (
     DefaultUsedException,
     ConfigMissingError,
-    ValidationError
+    ValidationError,
+    PermissionDenied
 )
 
 
@@ -38,7 +39,12 @@ class Config:
         stat = os.stat(".")
         self.pu, self.pg = stat.st_uid, stat.st_gid  # project user & group
         self.is_dev = os.path.isdir(".git")
-        self.root_mode = (os.getuid() == 0) if root_mode is None else root_mode
+        # self.root_mode = (os.getuid() == 0) if root_mode is None else root_mode
+        self.root_mode = os.getuid() == 0
+        if root_mode and not self.root_mode:
+            raise PermissionDenied(f"Can not set root mode, uid: {os.getuid()}")
+        if root_mode is False:
+            self.root_mode = False
 
         if not self.is_dev:
             path_check("d", "/host", 0, 0, 0o22)
@@ -88,6 +94,8 @@ class Config:
         # instance._check_config()
 
     def inspect(self):
+        if not self.root_mode:
+            raise PermissionDenied("This operation is allowed in root mode only.")
         info = {}
         for field_name, field_instance, section_instance in self.fields:
             try:
@@ -122,25 +130,34 @@ class Config:
                 value = f[2]
                 click.echo(f"    {name:>{max_name}} {flag} {value}")
 
+    def get(self, name, root=False, as_string=False):
+        if not self.root_mode and root:
+            raise PermissionDenied("This operation is allowed in root mode only.")
+        try:
+            field, _ = self.field_map[name]
+        except KeyError:
+            raise KeyError(f"No such config: {name}")
+        if as_string:
+            return field.to_storage(field.get(root=root)).decode()
+        return field.get(root=root)
+
+    def set(self, name, value, from_string=False, no_validate=False):
+        try:
+            field, _ = self.field_map[name]
+        except KeyError:
+            raise KeyError(f"No such config: {name}")
+        if from_string:
+            value = field.from_storage(value.encode())
+        field.set(value, no_validate=no_validate)
+
+    def prepare(self, service):
+        for name, [field, _] in self.field_map.items():
+            try:
+                field.prepare(service=service)
+            except Exception as e:
+                raise e.__class__(f"{name}: {e}")
+
 
 class Section:
     def __init__(self, config):
         self.config = config
-
-    # def get_name(self) -> str:
-    #     return self.name if self.name else "Section {}".format(self._section_counter)
-    #
-    # def __setitem__(self, name: str, value: Any) -> None:
-    #     if name not in self.fields:
-    #         raise KeyError("No such config: {}".format(name))
-    #     self.fields[name].set_root(value)
-    #
-    # def _validate(self) -> None:
-    #     validated_data = dict((f.name, f.get_root()) for f in self.fields.values())
-    #     self.validate(validated_data)
-    #
-    # def validate(self, validated_data: Dict[str, Any]) -> None:
-    #     pass
-    #
-    # def configure(self) -> None:
-    #     pass
