@@ -1,4 +1,6 @@
 import os
+import pwd
+import grp
 
 from .exceptions import ImproperlyConfigured
 
@@ -33,3 +35,15 @@ def path_check(typ, path, uid=None, gid=None, mask=None, fix=False):
         else:
             msg = f"Wrong permissions ({stat.st_mode:o}): {path}"
             raise ImproperlyConfigured(msg)
+
+
+def passwd(spec):
+    if isinstance(spec, int):
+        return pwd.getpwuid(spec)
+    return pwd.getpwnam(spec)
+
+
+def group(spec):
+    if isinstance(spec, int):
+        return grp.getgrgid(spec)
+    return grp.getgrnam(str(spec))
