@@ -27,7 +27,10 @@ setup(
     ],
     license="MIT",
     packages=["gstackutils"],
-    install_requires=["click >= 7.0"],
+    install_requires=[
+        "click >= 7.0",
+        "psycopg2 >= 2.8",
+    ],
     extras_require={
         "dev": [
             "coverage >= 4.5.2",

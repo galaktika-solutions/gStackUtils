@@ -41,3 +41,9 @@ def get(name):
     except ConfigMissingError:
         raise click.ClickException("The config is not set and no default specified.")
     sys.stdout.write(value)
+
+
+@conf.command()
+@click.argument("service")
+def prepare(service):
+    Config().prepare(service)

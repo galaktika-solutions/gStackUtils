@@ -1,6 +1,8 @@
 import os
 import pwd
 import grp
+import shutil
+import hashlib
 
 from .exceptions import ImproperlyConfigured
 
@@ -47,3 +49,33 @@ def group(spec):
     if isinstance(spec, int):
         return grp.getgrgid(spec)
     return grp.getgrnam(str(spec))
+
+
+def uid(spec):
+    try:
+        return int(spec)
+    except ValueError:
+        pw = pwd.getpwnam(spec)
+        return pw.pw_uid
+
+
+def gid(spec):
+    try:
+        return int(spec)
+    except ValueError:
+        gr = grp.getgrnam(str(spec))
+        return gr.gr_gid
+
+
+def cp(source, dest, _uid=-1, _gid=-1, mode=None):
+    shutil.copyfile(source, dest)
+    os.chown(dest, uid(_uid), gid(_gid))
+    os.chmod(dest, mode)
+
+
+def md5(s):
+    return hashlib.md5(s.encode()).hexdigest()
+
+
+def pg_pass(user, password):
+    return f"md5{md5(password + user)}"

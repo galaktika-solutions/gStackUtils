@@ -1,6 +1,20 @@
 version: "3.7"
 
+volumes:
+  data:
+
+networks:
+  default:
+
 services:
+  postgres:
+    image: gstackutils
+    volumes:
+      - "data:/data"
+      - ".:/src"
+      - ".:/host"
+    command: ["gstack", "db", "start"]
+
   main:
     build:
       context: docker
@@ -8,3 +22,4 @@ services:
     volumes:
       - ".:/src"
       - ".:/host"
+    command: ["gstack", "db", "wait", "-t", "9"]

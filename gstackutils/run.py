@@ -4,11 +4,13 @@ import signal
 import sys
 from grp import getgrall as getgroups
 
+import click
+
 from .helpers import passwd, group
 from .exceptions import ImproperlyConfigured
 
 
-def run(cmd, usr=0, grp=None, stopsignal=signal.SIGTERM, exit=True, silent=False):
+def run(cmd, usr=0, grp=None, stopsignal=signal.SIGTERM, exit=False, silent=False, cwd=None):
     try:
         pw = passwd(usr)
     except KeyError:
@@ -51,6 +53,10 @@ def run(cmd, usr=0, grp=None, stopsignal=signal.SIGTERM, exit=True, silent=False
     env["UID"] = str(uid)
     env["GID"] = str(gid)
 
+    # store signal handlers
+    original_sigterm_handler = signal.getsignal(signal.SIGINT)
+    original_sigint_handler = signal.getsignal(signal.SIGINT)
+
     proc = subprocess.Popen(
         cmd, preexec_fn=preexec_fn, env=env,
         stdout=subprocess.DEVNULL if silent else None,
@@ -64,6 +70,38 @@ def run(cmd, usr=0, grp=None, stopsignal=signal.SIGTERM, exit=True, silent=False
     signal.signal(signal.SIGINT, handler)
 
     returncode = proc.wait()
+
+    # restore original handlers
+    signal.signal(signal.SIGTERM, original_sigterm_handler)
+    signal.signal(signal.SIGINT, original_sigint_handler)
+
     if exit:
         sys.exit(returncode)
     return returncode
+
+
+@click.command(name="run")
+@click.option('--user', '-u')
+@click.option('--group', '-g')
+@click.option('--silent', is_flag=True)
+@click.option('--sig', '-s', default='SIGTERM')
+@click.argument("cmd", nargs=-1, required=True)
+def run_cli(user, group, silent, sig, cmd):
+    if user is not None:
+        try:
+            user = int(user)
+        except ValueError:
+            pass
+    if group is not None:
+        try:
+            group = int(group)
+        except ValueError:
+            pass
+    sig = sig.upper()
+    if not signal.startswith('SIG'):
+        raise click.ClickException(f"Signal not defined: {signal}")
+    try:
+        stopsignal = getattr(signal, sig)
+    except AttributeError:
+        raise click.ClickException(f"Signal not defined: {signal}")
+    run(cmd, usr=user, grp=group, stopsignal=stopsignal, silent=silent, exit=True)

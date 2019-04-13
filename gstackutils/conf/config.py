@@ -52,7 +52,7 @@ class Config:
         def fb(var, env, default):
             return var if var is not None else os.environ.get(env, default)
 
-        self.config_module = fb(config_module, "GSTACK_CONFIG_MODULE", "gstack_conf")
+        self.config_module = fb(config_module, "GSTACK_CONFIG_MODULE", "config.gstack_conf")
         self.env_file_path = fb(env_file_path, "GSTACK_ENV_FILE", "/host/.env")
         self.secret_file_path = fb(secret_file_path, "GSTACK_SECRET_FILE", "/host/.secret.env")
         self.secret_dir = fb(secret_dir, "GSTACK_SECRET_DIR", "/run/secrets")
@@ -130,7 +130,8 @@ class Config:
                 value = f[2]
                 click.echo(f"    {name:>{max_name}} {flag} {value}")
 
-    def get(self, name, root=False, as_string=False):
+    def get(self, name, root=None, as_string=False):
+        root = self.root_mode if root is None else root
         if not self.root_mode and root:
             raise PermissionDenied("This operation is allowed in root mode only.")
         try:

@@ -8,7 +8,7 @@ from gstackutils import run, ImproperlyConfigured
 class TestCertificates(unittest.TestCase):
     def test_it_works(self):
         with self.assertRaises(SystemExit):
-            run(["touch", "/tmp/x"], usr=1234, grp=2345)
+            run(["touch", "/tmp/x"], usr=1234, grp=2345, exit=True)
         stat = os.stat("/tmp/x")
         self.assertEqual(stat.st_uid, 1234)
         self.assertEqual(stat.st_gid, 2345)

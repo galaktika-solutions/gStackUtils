@@ -1,7 +1,7 @@
-from .exceptions import ImproperlyConfigured
+from .exceptions import ImproperlyConfigured, DatabaseNotPresent
 from .run import run
 
 
 __all__ = [
-    "ImproperlyConfigured", "run"
+    "ImproperlyConfigured", "DatabaseNotPresent", "run"
 ]

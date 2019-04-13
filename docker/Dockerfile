@@ -14,6 +14,7 @@ ENV PG_MAJOR 10
 RUN apt-get update && apt-get install -y postgresql-common
 RUN sed -ri 's/#(create_main_cluster) .*$/\1 = false/' /etc/postgresql-common/createcluster.conf
 RUN apt-get update && apt-get install -y postgresql-$PG_MAJOR
+RUN apt-get update && apt-get install -y libpq-dev
 ENV PGDATA /data/postgres
 
 # python
