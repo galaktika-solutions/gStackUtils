@@ -14,6 +14,8 @@ services:
       - ".:/src"
       - ".:/host"
     command: ["gstack", "db", "start"]
+    ports:
+      - 127.0.0.1:5432:5432
 
   main:
     build:
@@ -22,4 +24,4 @@ services:
     volumes:
       - ".:/src"
       - ".:/host"
-    command: ["gstack", "db", "wait", "-t", "9"]
+      - "data:/data"

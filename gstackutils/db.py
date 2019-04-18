@@ -1,6 +1,8 @@
 import os
 import importlib
 import time
+import signal
+import sys
 
 import click
 import psycopg2
@@ -45,6 +47,7 @@ def ensure(pg_hba_orig=None, pg_conf_orig=None, pg_init_module=None):
 
     mod = importlib.import_module(pg_init_module)
     for dbname, user, sql, params in mod.pg_init(config):
+        # click.echo(sql, nl=False)
         conn = psycopg2.connect(dbname=dbname, user=user, host="127.0.0.1")
         with conn:
             conn.autocommit = True
@@ -55,7 +58,10 @@ def ensure(pg_hba_orig=None, pg_conf_orig=None, pg_init_module=None):
                     psycopg2.errors.DuplicateObject,
                     psycopg2.errors.DuplicateDatabase,
                 ):
+                    # click.echo(" duplicate")
                     pass
+                # else:
+                #     click.echo(" OK")
         conn.close()
 
     # stop the internally started postgres
@@ -68,22 +74,43 @@ def wait_for_db(timeout=10, pg_init_module=None):
     mod = importlib.import_module(pg_init_module)
     healthcheck = mod.healthcheck
     config = Config()
+    stopped = [False]  # easier to use variable in the handler
 
+    # we need a signal handling mechanism because:
+    #   - pid 1 problem
+    #   - psycopg2 does not play nicely with SIGINT
+    original_sigterm_handler = signal.getsignal(signal.SIGTERM)
+    original_sigint_handler = signal.getsignal(signal.SIGINT)
+
+    def handler(signum, frame):
+        stopped[0] = True
+
+    signal.signal(signal.SIGTERM, handler)
+    signal.signal(signal.SIGINT, handler)
+
+    exitreason = "S"
     start = time.time()
-    while True:
+    while not stopped[0]:
         try:
             healthcheck(config)
         except Exception as e:
-            print(e)
+            # print("healthcheck failed", str(e)[:20])
             now = time.time()
             if now - start > timeout:
+                exitreason = "T"
                 break
-            time.sleep(1)
+            time.sleep(0.5)
             continue
         else:
-            print("OK")
-            return
-    raise DatabaseNotPresent()
+            # print("OK")
+            exitreason = "O"
+            break
+
+    signal.signal(signal.SIGTERM, original_sigterm_handler)
+    signal.signal(signal.SIGINT, original_sigint_handler)
+
+    if exitreason == "T":
+        raise DatabaseNotPresent()
 
 
 @click.group(name="db")
@@ -105,4 +132,7 @@ def start_cli():
 @cli.command(name="wait")
 @click.option("--timeout", "-t", default=10)
 def wait_cli(timeout):
-    wait_for_db(timeout=timeout)
+    try:
+        wait_for_db(timeout=timeout)
+    except DatabaseNotPresent:
+        sys.exit(1)

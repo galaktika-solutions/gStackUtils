@@ -10,7 +10,7 @@ from .helpers import passwd, group
 from .exceptions import ImproperlyConfigured
 
 
-def run(cmd, usr=0, grp=None, stopsignal=signal.SIGTERM, exit=False, silent=False, cwd=None):
+def run(cmd, usr=0, grp=None, stopsignal=None, exit=False, silent=False, cwd=None):
     try:
         pw = passwd(usr)
     except KeyError:
@@ -53,9 +53,7 @@ def run(cmd, usr=0, grp=None, stopsignal=signal.SIGTERM, exit=False, silent=Fals
     env["UID"] = str(uid)
     env["GID"] = str(gid)
 
-    # store signal handlers
-    original_sigterm_handler = signal.getsignal(signal.SIGINT)
-    original_sigint_handler = signal.getsignal(signal.SIGINT)
+    sig = getattr(signal, stopsignal) if stopsignal else None
 
     proc = subprocess.Popen(
         cmd, preexec_fn=preexec_fn, env=env,
@@ -63,15 +61,15 @@ def run(cmd, usr=0, grp=None, stopsignal=signal.SIGTERM, exit=False, silent=Fals
         stderr=subprocess.DEVNULL if silent else None,
     )
 
+    original_sigterm_handler = signal.getsignal(signal.SIGTERM)
+    original_sigint_handler = signal.getsignal(signal.SIGINT)
+
     def handler(signum, frame):
-        proc.send_signal(stopsignal if stopsignal is not None else signum)
+        proc.send_signal(sig if sig is not None else signum)
 
     signal.signal(signal.SIGTERM, handler)
     signal.signal(signal.SIGINT, handler)
-
     returncode = proc.wait()
-
-    # restore original handlers
     signal.signal(signal.SIGTERM, original_sigterm_handler)
     signal.signal(signal.SIGINT, original_sigint_handler)
 
@@ -84,9 +82,9 @@ def run(cmd, usr=0, grp=None, stopsignal=signal.SIGTERM, exit=False, silent=Fals
 @click.option('--user', '-u')
 @click.option('--group', '-g')
 @click.option('--silent', is_flag=True)
-@click.option('--sig', '-s', default='SIGTERM')
+@click.option('--signal', '-s')
 @click.argument("cmd", nargs=-1, required=True)
-def run_cli(user, group, silent, sig, cmd):
+def run_cli(user, group, silent, signal, cmd):
     if user is not None:
         try:
             user = int(user)
@@ -97,11 +95,4 @@ def run_cli(user, group, silent, sig, cmd):
             group = int(group)
         except ValueError:
             pass
-    sig = sig.upper()
-    if not signal.startswith('SIG'):
-        raise click.ClickException(f"Signal not defined: {signal}")
-    try:
-        stopsignal = getattr(signal, sig)
-    except AttributeError:
-        raise click.ClickException(f"Signal not defined: {signal}")
-    run(cmd, usr=user, grp=group, stopsignal=stopsignal, silent=silent, exit=True)
+    run(cmd, usr=user, grp=group, silent=silent, stopsignal=signal, exit=True)
