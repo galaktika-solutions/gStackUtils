@@ -7,6 +7,10 @@ import hashlib
 from .exceptions import ImproperlyConfigured
 
 
+def env(var, env, default):
+    return var if var is not None else os.environ.get(env, default)
+
+
 def path_check(typ, path, uid=None, gid=None, mask=None, fix=False):
     if typ == "f" and not os.path.isfile(path):
         if fix:

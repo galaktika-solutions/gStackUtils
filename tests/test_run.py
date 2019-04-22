@@ -5,7 +5,7 @@ import os
 from gstackutils import run, ImproperlyConfigured
 
 
-class TestCertificates(unittest.TestCase):
+class TestRun(unittest.TestCase):
     def test_it_works(self):
         with self.assertRaises(SystemExit):
             run(["touch", "/tmp/x"], usr=1234, grp=2345, exit=True)

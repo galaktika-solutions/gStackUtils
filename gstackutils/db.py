@@ -11,17 +11,50 @@ from . import ImproperlyConfigured, DatabaseNotPresent
 from .helpers import uid, gid, cp
 from .run import run
 from .conf import Config
+from .helpers import env, pg_pass
 
 
-def fb(var, env, default):
-    return var if var is not None else os.environ.get(env, default)
+def pg_init(conf):
+    postgres_pass = pg_pass("postgres", conf.get("DB_PASSWORD_POSTGRES"))
+    django_pass = pg_pass("django", conf.get("DB_PASSWORD_DJANGO"))
+
+    return([
+        (
+            "postgres", "postgres",
+            "ALTER ROLE postgres ENCRYPTED PASSWORD %s", (postgres_pass,),
+        ),
+        (
+            "template1", "postgres",
+            "CREATE EXTENSION unaccent; CREATE EXTENSION fuzzystrmatch", (),
+        ),
+        (
+            "postgres", "postgres",
+            "CREATE ROLE django", (),
+        ),
+        (
+            "postgres", "postgres",
+            "ALTER ROLE django ENCRYPTED PASSWORD %s LOGIN CREATEDB", (django_pass,),
+        ),
+        (
+            "postgres", "django",
+            "CREATE DATABASE django", (),
+        ),
+    ])
 
 
-def ensure(pg_hba_orig=None, pg_conf_orig=None, pg_init_module=None):
-    pg_hba_orig = fb(pg_hba_orig, "GSTACK_PG_HBA_ORIG", "config/pg_hba.conf")
-    pg_conf_orig = fb(pg_conf_orig, "GSTACK_PG_CONF_ORIG", "config/postgresql.conf")
-    pg_init_module = fb(pg_init_module, "GSTACK_PG_INIT_MODULE", "config.pg_init")
-    config = Config()
+def healthcheck(conf):
+    dbname = "django"
+    user = "django"
+    password = conf.get("DB_PASSWORD_DJANGO")
+    host = "postgres"
+    psycopg2.connect(dbname=dbname, user=user, password=password, host=host)
+
+
+def ensure(pg_hba_orig=None, pg_conf_orig=None, pg_init_module=None, conf=None):
+    pg_hba_orig = env(pg_hba_orig, "GSTACK_PG_HBA_ORIG", "config/pg_hba.conf")
+    pg_conf_orig = env(pg_conf_orig, "GSTACK_PG_CONF_ORIG", "config/postgresql.conf")
+    pg_init_module = env(pg_init_module, "GSTACK_PG_INIT_MODULE", "gstackutils.db")
+    config = conf or Config()
     pgdata = os.environ.get('PGDATA')
 
     if not pgdata:
@@ -69,11 +102,11 @@ def ensure(pg_hba_orig=None, pg_conf_orig=None, pg_init_module=None):
     run(cmd, usr="postgres")
 
 
-def wait_for_db(timeout=10, pg_init_module=None):
-    pg_init_module = fb(pg_init_module, "GSTACK_PG_INIT_MODULE", "config.pg_init")
+def wait_for_db(timeout=10, pg_init_module=None, conf=None):
+    pg_init_module = env(pg_init_module, "GSTACK_PG_INIT_MODULE", "gstackutils.db")
     mod = importlib.import_module(pg_init_module)
     healthcheck = mod.healthcheck
-    config = Config()
+    config = conf or Config()
     stopped = [False]  # easier to use variable in the handler
 
     # we need a signal handling mechanism because:

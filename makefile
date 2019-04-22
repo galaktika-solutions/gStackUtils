@@ -14,6 +14,7 @@ init:
 
 .PHONY: docs
 docs:
+	rm -rf docs/build
 	docker-compose run --rm -e "VERSION=$(version)" -u "$$(id -u):$$(id -g)" \
 		main sphinx-build -b html docs/source docs/build
 

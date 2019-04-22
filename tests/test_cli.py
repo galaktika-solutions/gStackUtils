@@ -30,6 +30,9 @@ class BaseCLITetsCase(unittest.TestCase):
                 os.remove(os.path.join(".files", f))
             os.rmdir(".files")
         os.chdir("../..")
+        del os.environ["GSTACK_ENV_FILE"]
+        del os.environ["GSTACK_SECRET_FILE"]
+        del os.environ["GSTACK_CONFIG_MODULE"]
 
 
 class TestCLI(BaseCLITetsCase):
@@ -84,3 +87,18 @@ class TestBadCLI(BaseCLITetsCase):
     def test_multidefined_fields(self):
         with self.assertRaises(ImproperlyConfigured):
             Config()
+
+
+class TestCert(BaseCLITetsCase):
+    def test_cert(self):
+        runner = CliRunner()
+        runner.invoke(cli, ["cert", "-n", "mysite.com"])
+        fs = [f for f in os.listdir(".") if f.startswith("mysite.com")]
+        self.assertEqual(len(fs), 3)
+        for f in fs:
+            os.remove(f)
+
+    def test_cert_without_name(self):
+        runner = CliRunner()
+        res = runner.invoke(cli, ["cert"])
+        self.assertEqual(res.exit_code, 1)

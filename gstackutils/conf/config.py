@@ -13,6 +13,7 @@ from .exceptions import (
     ValidationError,
     PermissionDenied
 )
+from ..helpers import env
 
 
 FLAGS = {
@@ -49,18 +50,16 @@ class Config:
         if not self.is_dev:
             path_check("d", "/host", 0, 0, 0o22)
 
-        def fb(var, env, default):
-            return var if var is not None else os.environ.get(env, default)
-
-        self.config_module = fb(config_module, "GSTACK_CONFIG_MODULE", "config.gstack_conf")
-        self.env_file_path = fb(env_file_path, "GSTACK_ENV_FILE", "/host/.env")
-        self.secret_file_path = fb(secret_file_path, "GSTACK_SECRET_FILE", "/host/.secret.env")
-        self.secret_dir = fb(secret_dir, "GSTACK_SECRET_DIR", "/run/secrets")
+        self.config_module = env(config_module, "GSTACK_CONFIG_MODULE", "config.gstack_conf")
+        self.env_file_path = env(env_file_path, "GSTACK_ENV_FILE", "/host/.env")
+        self.secret_file_path = env(secret_file_path, "GSTACK_SECRET_FILE", "/host/.secret.env")
+        self.secret_dir = env(secret_dir, "GSTACK_SECRET_DIR", "/run/secrets")
 
         path_check("f", self.env_file_path, self.pu, self.pg, 0o133, self.root_mode)
         path_check("f", self.secret_file_path, self.pu, self.pg, 0o177, self.root_mode)
         path_check("d", self.secret_dir, self.pu, self.pg, 0o22, self.root_mode)
 
+        # print("***", self.config_module)
         mod = importlib.import_module(self.config_module)
 
         fields = []

@@ -11,6 +11,8 @@ from .exceptions import ImproperlyConfigured
 
 
 def run(cmd, usr=0, grp=None, stopsignal=None, exit=False, silent=False, cwd=None):
+    """Run a command."""
+
     try:
         pw = passwd(usr)
     except KeyError:
