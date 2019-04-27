@@ -5,7 +5,7 @@ import inspect
 import click
 
 from ..helpers import path_check
-from .field import ConfigField
+from .fields import ConfigField
 from ..exceptions import ImproperlyConfigured
 from .exceptions import (
     DefaultUsedException,
@@ -17,14 +17,18 @@ from ..helpers import env
 
 
 FLAGS = {
-    # "OK": ("●", "green"),
-    # "DEF": ("○", "green"),
-    # "MISS": ("━", "red"),
-    # "INV": ("✖", "red"),
-    "OK": (" ", "green"),
-    "DEF": (".", "green"),
-    "MISS": ("?", "red"),
-    "INV": ("!", "red"),
+    "colors": {
+        "OK": ("●", "green"),
+        "DEF": ("○", "green"),
+        "MISS": ("━", "red"),
+        "INV": ("✖", "red"),
+    },
+    "simple": {
+        "OK": (" ", None),
+        "DEF": (".", None),
+        "MISS": ("?", None),
+        "INV": ("!", None),
+    }
 }
 
 
@@ -36,6 +40,7 @@ class Config:
         secret_file_path=None,
         secret_dir=None,
         root_mode=None,
+        theme=None,
     ):
         stat = os.stat(".")
         self.pu, self.pg = stat.st_uid, stat.st_gid  # project user & group
@@ -54,12 +59,12 @@ class Config:
         self.env_file_path = env(env_file_path, "GSTACK_ENV_FILE", "/host/.env")
         self.secret_file_path = env(secret_file_path, "GSTACK_SECRET_FILE", "/host/.secret.env")
         self.secret_dir = env(secret_dir, "GSTACK_SECRET_DIR", "/run/secrets")
+        self.theme = env(theme, "GSTACK_THEME", "colors")
 
         path_check("f", self.env_file_path, self.pu, self.pg, 0o133, self.root_mode)
         path_check("f", self.secret_file_path, self.pu, self.pg, 0o177, self.root_mode)
         path_check("d", self.secret_dir, self.pu, self.pg, 0o22, self.root_mode)
 
-        # print("***", self.config_module)
         mod = importlib.import_module(self.config_module)
 
         fields = []
@@ -84,7 +89,7 @@ class Config:
                     raise ImproperlyConfigured(
                         f"Config '{field_name}' was defined multiple times."
                     )
-                field_instance.setup_field(self, field_name)
+                field_instance._setup_field(self, field_name)
                 fields.append((field_name, field_instance, section_instance))
                 self.field_names.add(field_name)
 
@@ -98,7 +103,7 @@ class Config:
         info = {}
         for field_name, field_instance, section_instance in self.fields:
             try:
-                value = field_instance.get(root=True, default_exception=True)
+                value = field_instance.get(root=True, default_exception=True, validate=True)
                 flag = "OK"
             except DefaultUsedException:
                 value = field_instance.default
@@ -110,7 +115,7 @@ class Config:
                 value = ""
                 flag = "INV"
             if flag in ("OK", "DEF"):
-                value = field_instance.human_readable(value)
+                value = field_instance.to_human_readable(value)
             section_list = info.setdefault(section_instance.__class__.__name__, [])
             section_list.append((field_name, flag, value))
 
@@ -123,13 +128,13 @@ class Config:
             click.secho(k, fg="yellow")
             for f in v:
                 name = f[0]
-                symbol, color = FLAGS[f[1]]
-                # flag = click.style(symbol, fg=color)
-                flag = symbol
+                symbol, color = FLAGS[self.theme][f[1]]
+                flag = click.style(symbol, fg=color)
+                # flag = symbol
                 value = f[2]
                 click.echo(f"    {name:>{max_name}} {flag} {value}")
 
-    def get(self, name, root=None, as_string=False):
+    def get(self, name, root=None, to_stdout=False):
         root = self.root_mode if root is None else root
         if not self.root_mode and root:
             raise PermissionDenied("This operation is allowed in root mode only.")
@@ -137,17 +142,17 @@ class Config:
             field, _ = self.field_map[name]
         except KeyError:
             raise KeyError(f"No such config: {name}")
-        if as_string:
-            return field.to_storage(field.get(root=root)).decode()
+        if to_stdout:
+            return field.to_stdout(field.get(root=root))
         return field.get(root=root)
 
-    def set(self, name, value, from_string=False, no_validate=False):
+    def set(self, name, value, no_validate=False, from_stdin=False):
         try:
             field, _ = self.field_map[name]
         except KeyError:
             raise KeyError(f"No such config: {name}")
-        if from_string:
-            value = field.from_storage(value.encode())
+        if from_stdin:
+            value = field.from_stdin(value)
         field.set(value, no_validate=no_validate)
 
     def prepare(self, service):

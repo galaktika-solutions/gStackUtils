@@ -1,14 +1,15 @@
 import psycopg2
 
-from gstackutils.conf import Section, EnvString, SecretString
+from gstackutils.conf import Section, EnvString, SecretString, EnvBool
 from gstackutils.helpers import pg_pass
 
 
 class First(Section):
     ANIMAL = EnvString(default="duck")
     SAIS = SecretString(default="quack", min_length=3, services={"test": []})
-    TIMES = EnvString(min_length=5)
-    AFTER = EnvString()
+    LIKES = EnvString(min_length=5)
+    COLOR = EnvString()
+    DANGEROUS = EnvBool(default=False)
 
 
 class Empty(Section):
@@ -19,10 +20,10 @@ def pg_init(conf):
     postgres_pass = pg_pass("postgres", "postgres")
 
     return([
-        (
-            "postgres", "postgres",
-            "ALTER ROLE postgres ENCRYPTED PASSWORD %s", (postgres_pass,),
-        ),
+        {
+            "sql": "ALTER ROLE postgres ENCRYPTED PASSWORD %s",
+            "params": (postgres_pass,),
+        },
     ])
 
 

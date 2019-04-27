@@ -3,6 +3,9 @@ import pwd
 import grp
 import shutil
 import hashlib
+import re
+
+import click
 
 from .exceptions import ImproperlyConfigured
 
@@ -71,10 +74,47 @@ def gid(spec):
         return gr.gr_gid
 
 
-def cp(source, dest, _uid=-1, _gid=-1, mode=None):
+def cp(source, dest, _uid=-1, _gid=-1, mode=None, substitute=False):
     shutil.copyfile(source, dest)
     os.chown(dest, uid(_uid), gid(_gid))
-    os.chmod(dest, mode)
+    if mode is not None:
+        os.chmod(dest, mode)
+    if not substitute:
+        return
+
+    with open(dest, "r") as f:
+        lines = f.readlines()
+
+    newlines = []
+    for l in lines:
+        newline = l
+        skipline = False
+        for pattern in re.findall(r"\{\{.+\}\}", l):
+            # not defined: default
+            m = re.fullmatch(r"\{\{\s*([^-\s|]+)\s*\|\s*(.*?)\s*\}\}", pattern)
+            if m:
+                repl = os.environ.get(m.group(1))
+                repl = repl if repl is not None else m.group(2)
+                newline = newline.replace(pattern, repl)
+            # not defined: remove line
+            m = re.fullmatch(r"\{\{\s*([^-\s|]+)\s*-\s*\}\}", pattern)
+            if m:
+                repl = os.environ.get(m.group(1))
+                if repl is None:
+                    skipline = True
+                    continue
+                newline = newline.replace(pattern, repl)
+            # not defined: delete
+            m = re.fullmatch(r"\{\{\s*([^-\s|]+)\s*\}\}", pattern)
+            if m:
+                repl = os.environ.get(m.group(1))
+                repl = repl if repl is not None else ""
+                newline = newline.replace(pattern, repl)
+        if not skipline:
+            newlines.append(newline)
+
+    with open(dest, "w") as f:
+        f.writelines(newlines)
 
 
 def md5(s):
@@ -83,3 +123,19 @@ def md5(s):
 
 def pg_pass(user, password):
     return f"md5{md5(password + user)}"
+
+
+@click.group(name="helpers")
+def cli():
+    pass
+
+
+@cli.command(name="cp")
+@click.argument("source", type=click.Path(exists=True))
+@click.argument("dest", type=click.Path())
+@click.option("--uid", "-u")
+@click.option("--gid", "-g")
+@click.option("--mode", "-m")
+@click.option("-s", "--substitute", is_flag=True)
+def cp_cli(source, dest, uid, gid, mode, substitute):
+    cp(source, dest, -1 if uid is None else uid, -1 if gid is None else gid, mode, substitute)

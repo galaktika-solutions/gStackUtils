@@ -19,26 +19,29 @@ def pg_init(conf):
     django_pass = pg_pass("django", conf.get("DB_PASSWORD_DJANGO"))
 
     return([
-        (
-            "postgres", "postgres",
-            "ALTER ROLE postgres ENCRYPTED PASSWORD %s", (postgres_pass,),
-        ),
-        (
-            "template1", "postgres",
-            "CREATE EXTENSION unaccent; CREATE EXTENSION fuzzystrmatch", (),
-        ),
-        (
-            "postgres", "postgres",
-            "CREATE ROLE django", (),
-        ),
-        (
-            "postgres", "postgres",
-            "ALTER ROLE django ENCRYPTED PASSWORD %s LOGIN CREATEDB", (django_pass,),
-        ),
-        (
-            "postgres", "django",
-            "CREATE DATABASE django", (),
-        ),
+        {
+            "sql": "ALTER ROLE postgres ENCRYPTED PASSWORD %s",
+            "params": (postgres_pass,),
+        },
+        {
+            "dbname": "template1",
+            "sql": "CREATE EXTENSION unaccent",
+        },
+        {
+            "dbname": "template1",
+            "sql": "CREATE EXTENSION fuzzystrmatch",
+        },
+        {
+            "sql": "CREATE ROLE django",
+        },
+        {
+            "sql": "ALTER ROLE django ENCRYPTED PASSWORD %s LOGIN CREATEDB",
+            "params": (django_pass,),
+        },
+        {
+            "user": "django",
+            "sql": "CREATE DATABASE django",
+        },
     ])
 
 
@@ -50,7 +53,15 @@ def healthcheck(conf):
     psycopg2.connect(dbname=dbname, user=user, password=password, host=host)
 
 
-def ensure(pg_hba_orig=None, pg_conf_orig=None, pg_init_module=None, conf=None):
+def ensure(pg_hba_orig=None, pg_conf_orig=None, pg_init_module=None, conf=None, verbose=False):
+    def echo(msg):
+        if verbose:
+            click.echo(f"{msg} ...", nl=False)
+
+    def echodone(msg="OK"):
+        if verbose:
+            click.echo(f" {msg}")
+
     pg_hba_orig = env(pg_hba_orig, "GSTACK_PG_HBA_ORIG", "config/pg_hba.conf")
     pg_conf_orig = env(pg_conf_orig, "GSTACK_PG_CONF_ORIG", "config/postgresql.conf")
     pg_init_module = env(pg_init_module, "GSTACK_PG_INIT_MODULE", "gstackutils.db")
@@ -60,27 +71,39 @@ def ensure(pg_hba_orig=None, pg_conf_orig=None, pg_init_module=None, conf=None):
     if not pgdata:
         raise ImproperlyConfigured("No PGDATA found in the environment.")
 
+    echo(f"Checking PGDATA (={pgdata}) directory")
     os.makedirs(pgdata, exist_ok=True)
     os.chmod(pgdata, 0o700)
     os.chown(pgdata, uid("postgres"), gid("postgres"))
+    echodone()
 
     pg_version = os.path.join(pgdata, "PG_VERSION")
     if not os.path.isfile(pg_version) or os.path.getsize(pg_version) == 0:
+        echo("initdb")
         run(usr="postgres", cmd=("initdb", ), silent=True)
+        echodone()
 
+    echo("Copying config files")
     dest = os.path.join(pgdata, "pg_hba.conf")
     cp(pg_hba_orig, dest, "postgres", "postgres", 0o600)
 
     dest = os.path.join(pgdata, "postgresql.conf")
     cp(pg_conf_orig, dest, "postgres", "postgres", 0o600)
+    echodone()
 
     # start postgres locally
     cmd = ("pg_ctl", "-o", "-c listen_addresses='127.0.0.1'", "-w", "start",)
+    echo("Starting the database server locally")
     run(cmd, usr="postgres", silent=True)
+    echodone()
 
     mod = importlib.import_module(pg_init_module)
-    for dbname, user, sql, params in mod.pg_init(config):
-        # click.echo(sql, nl=False)
+    for action in mod.pg_init(config):
+        dbname = action.get("dbname", "postgres")
+        user = action.get("user", "postgres")
+        sql = action["sql"]
+        params = action.get("params", ())
+        echo(f"Running SQL in db {dbname} with user {user}: {sql}")
         conn = psycopg2.connect(dbname=dbname, user=user, host="127.0.0.1")
         with conn:
             conn.autocommit = True
@@ -91,15 +114,16 @@ def ensure(pg_hba_orig=None, pg_conf_orig=None, pg_init_module=None, conf=None):
                     psycopg2.errors.DuplicateObject,
                     psycopg2.errors.DuplicateDatabase,
                 ):
-                    # click.echo(" duplicate")
-                    pass
-                # else:
-                #     click.echo(" OK")
+                    echodone("OK (existed)")
+                else:
+                    echodone()
         conn.close()
 
     # stop the internally started postgres
     cmd = ("pg_ctl", "stop", "-s", "-w", "-m", "fast")
+    echo("Stopping the server")
     run(cmd, usr="postgres")
+    echodone()
 
 
 def wait_for_db(timeout=10, pg_init_module=None, conf=None):
@@ -127,7 +151,6 @@ def wait_for_db(timeout=10, pg_init_module=None, conf=None):
         try:
             healthcheck(config)
         except Exception as e:
-            # print("healthcheck failed", str(e)[:20])
             now = time.time()
             if now - start > timeout:
                 exitreason = "T"
@@ -135,7 +158,6 @@ def wait_for_db(timeout=10, pg_init_module=None, conf=None):
             time.sleep(0.5)
             continue
         else:
-            # print("OK")
             exitreason = "O"
             break
 
@@ -152,8 +174,9 @@ def cli():
 
 
 @cli.command(name="ensure")
-def ensure_cli():
-    ensure()
+@click.option('--verbose', "-v", is_flag=True)
+def ensure_cli(verbose):
+    ensure(verbose=verbose)
 
 
 @cli.command(name="start")
