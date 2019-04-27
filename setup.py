@@ -16,7 +16,7 @@ setup(
     long_description=long_description,
     long_description_content_type="text/markdown",
     version=VERSION,
-    # url="https://github.com/galaktika-solutions/gDockUtils",
+    url="https://github.com/galaktika-solutions/gstackutils",
     author="Richard Bann",
     author_email="richardbann@gmail.com",
     classifiers=[

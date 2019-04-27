@@ -27,3 +27,16 @@ test:
 
 coverage-report: test
 	docker-compose run --rm -u "$$(id -u):$$(id -g)" main coverage html
+
+
+distribute: clean init coverage-report docs
+	docker-compose run --rm main bash -c ' \
+		set -e; \
+		rm -rf dist; \
+		python setup.py sdist; \
+		export TWINE_USERNAME="$$(gstack conf get PYPI_USERNAME)"; \
+		export TWINE_PASSWORD="$$(gstack conf get PYPI_PASSWORD)"; \
+		twine upload dist/* \
+	'
+	git tag $(version)
+	git push --tags
