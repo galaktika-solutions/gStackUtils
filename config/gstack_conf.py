@@ -1,4 +1,5 @@
 import psycopg2
+# import click
 
 from gstackutils.conf import (
     Section, EnvString, SecretString, EnvBool, EnvFile, SecretFile,
@@ -64,3 +65,10 @@ def healthcheck(conf):
     password = conf.get("DB_PASSWORD_DJANGO")
     host = "postgres"
     psycopg2.connect(dbname=dbname, user=user, password=password, host=host)
+
+
+# @click.command(name="backup")
+# @click.option("--db", "-d", is_flag=True)
+# @click.option("--files", "-f", is_flag=True)
+# def backup_cli(db, files):
+#     print("doing backup...")

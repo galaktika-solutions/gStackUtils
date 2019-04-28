@@ -134,13 +134,15 @@ class Config:
                 value = f[2]
                 click.echo(f"    {name:>{max_name}} {flag} {value}")
 
-    def get(self, name, root=None, to_stdout=False):
+    def get(self, name, root=None, to_stdout=False, default=None):
         root = self.root_mode if root is None else root
         if not self.root_mode and root:
             raise PermissionDenied("This operation is allowed in root mode only.")
         try:
             field, _ = self.field_map[name]
         except KeyError:
+            if default:
+                return default
             raise KeyError(f"No such config: {name}")
         if to_stdout:
             return field.to_stdout(field.get(root=root))
