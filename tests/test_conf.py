@@ -16,6 +16,8 @@ class ConfTestCase(unittest.TestCase):
         os.environ["GSTACK_SECRET_FILE"] = ".secret.env"
         os.environ["GSTACK_SECRET_DIR"] = "secrets"
         os.environ["GSTACK_THEME"] = "simple"
+        os.environ["GSTACK_PG_HBA_ORIG"] = "pg_hba.conf"
+        os.environ["GSTACK_PG_CONF_ORIG"] = "postgresql.conf"
 
     def tearDown(self):
         if os.path.isfile(os.environ["GSTACK_ENV_FILE"]):
@@ -31,6 +33,8 @@ class ConfTestCase(unittest.TestCase):
         del os.environ["GSTACK_SECRET_DIR"]
         del os.environ["GSTACK_CONFIG_MODULE"]
         del os.environ["GSTACK_THEME"]
+        del os.environ["GSTACK_PG_HBA_ORIG"]
+        del os.environ["GSTACK_PG_CONF_ORIG"]
         os.chdir("/src")
 
 

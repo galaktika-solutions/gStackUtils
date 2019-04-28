@@ -10,7 +10,7 @@ from .helpers import passwd, group
 from .exceptions import ImproperlyConfigured
 
 
-def run(cmd, usr=0, grp=None, stopsignal=None, exit=False, silent=False, cwd=None):
+def run(cmd, usr=0, grp=None, stopsignal=None, exit=False, silent=False, cwd=None, extraenv={}):
     """Run a command."""
 
     try:
@@ -54,6 +54,7 @@ def run(cmd, usr=0, grp=None, stopsignal=None, exit=False, silent=False, cwd=Non
         env["HOME"] = homedir
     env["UID"] = str(uid)
     env["GID"] = str(gid)
+    env.update(extraenv)
 
     sig = getattr(signal, stopsignal) if stopsignal else None
 

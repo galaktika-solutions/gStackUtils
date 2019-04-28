@@ -53,7 +53,7 @@ def healthcheck(conf):
     psycopg2.connect(dbname=dbname, user=user, password=password, host=host)
 
 
-def ensure(pg_hba_orig=None, pg_conf_orig=None, pg_init_module=None, conf=None, verbose=False):
+def ensure(pg_hba_orig=None, pg_conf_orig=None, conf=None, verbose=False):
     def echo(msg):
         if verbose:
             click.echo(f"{msg} ...", nl=False)
@@ -64,8 +64,8 @@ def ensure(pg_hba_orig=None, pg_conf_orig=None, pg_init_module=None, conf=None, 
 
     pg_hba_orig = env(pg_hba_orig, "GSTACK_PG_HBA_ORIG", "config/pg_hba.conf")
     pg_conf_orig = env(pg_conf_orig, "GSTACK_PG_CONF_ORIG", "config/postgresql.conf")
-    pg_init_module = env(pg_init_module, "GSTACK_PG_INIT_MODULE", "gstackutils.db")
     config = conf or Config()
+    config_module = config.config_module
     pgdata = os.environ.get('PGDATA')
 
     if not pgdata:
@@ -97,8 +97,12 @@ def ensure(pg_hba_orig=None, pg_conf_orig=None, pg_init_module=None, conf=None, 
     run(cmd, usr="postgres", silent=True)
     echodone()
 
-    mod = importlib.import_module(pg_init_module)
-    for action in mod.pg_init(config):
+    mod = importlib.import_module(config_module)
+    if hasattr(mod, "pg_init"):
+        _pg_init = mod.pg_init
+    else:
+        _pg_init = pg_init
+    for action in _pg_init(config):
         dbname = action.get("dbname", "postgres")
         user = action.get("user", "postgres")
         sql = action["sql"]
@@ -126,11 +130,14 @@ def ensure(pg_hba_orig=None, pg_conf_orig=None, pg_init_module=None, conf=None, 
     echodone()
 
 
-def wait_for_db(timeout=10, pg_init_module=None, conf=None):
-    pg_init_module = env(pg_init_module, "GSTACK_PG_INIT_MODULE", "gstackutils.db")
-    mod = importlib.import_module(pg_init_module)
-    healthcheck = mod.healthcheck
+def wait_for_db(timeout=10, conf=None):
     config = conf or Config()
+    config_module = config.config_module
+    mod = importlib.import_module(config_module)
+    if hasattr(mod, "healthcheck"):
+        _healthcheck = mod.healthcheck
+    else:
+        _healthcheck = healthcheck
     stopped = [False]  # easier to use variable in the handler
 
     # we need a signal handling mechanism because:
@@ -149,7 +156,7 @@ def wait_for_db(timeout=10, pg_init_module=None, conf=None):
     start = time.time()
     while not stopped[0]:
         try:
-            healthcheck(config)
+            _healthcheck(config)
         except Exception as e:
             now = time.time()
             if now - start > timeout:
@@ -177,12 +184,6 @@ def cli():
 @click.option('--verbose', "-v", is_flag=True)
 def ensure_cli(verbose):
     ensure(verbose=verbose)
-
-
-@cli.command(name="start")
-def start_cli():
-    ensure()
-    run(["postgres"], usr="postgres", exit=True)
 
 
 @cli.command(name="wait")

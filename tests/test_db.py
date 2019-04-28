@@ -1,28 +1,24 @@
-import unittest
-import unittest.mock
-import os
 import subprocess
+import os
 
-
-# from gstackutils import run, ImproperlyConfigured
 from gstackutils.db import ensure, wait_for_db
 from gstackutils import DatabaseNotPresent
+from .test_conf import ConfTestCase
 
 
-class TestDB(unittest.TestCase):
+class TestDB(ConfTestCase):
     def test_ensure(self):
-        ensure(pg_init_module="tests.fixtures.gstack_conf")
+        ensure()
 
+    def test_wait(self):
         env = os.environ.copy()
-        env["GSTACK_PG_INIT_MODULE"] = "tests.fixtures.gstack_conf"
-
+        env.update({"PYTHONPATH": "."})
         dbprocess = subprocess.Popen(
-            ["gstack", "db", "start"],
-            env=env
+            ["gstack", "start", "postgres"],
+            env=env, stderr=subprocess.DEVNULL
         )
-        wait_for_db(pg_init_module="tests.fixtures.gstack_conf")
+        wait_for_db()
         dbprocess.terminate()
         dbprocess.wait()
-
         with self.assertRaises(DatabaseNotPresent):
-            wait_for_db(timeout=0, pg_init_module="tests.fixtures.gstack_conf")
+            wait_for_db(timeout=0)

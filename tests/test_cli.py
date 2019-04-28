@@ -67,15 +67,17 @@ class TestConfCLI(ConfTestCase):
             self.assertEqual(f.read(), "quaackk")
         result = runner.invoke(cli, ["conf", "get", "SAIS"])
         self.assertEqual(result.output, "quaackk")
-        os.environ["GSTACK_CONFIG_MODULE"] = "tests.fixtures.gstack_conf"  # why needed?
-        retcode = run(("gstack", "conf", "get", "SAIS"), usr="postgres")
+        retcode = run(
+            ("gstack", "conf", "get", "SAIS"),
+            usr="postgres", extraenv={"PYTHONPATH": "."}, silent=True
+        )
         self.assertEqual(retcode, 1)
 
 
 class TestCert(ConfTestCase):
     def test_cert(self):
         runner = CliRunner()
-        runner.invoke(cli, ["cert", "-n", "mysite.com"])
+        runner.invoke(cli, ["cert", "-n", "mysite.com", "--silent"])
         fs = [f for f in os.listdir(".") if f.startswith("mysite.com")]
         self.assertEqual(len(fs), 3)
         for f in fs:

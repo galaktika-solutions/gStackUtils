@@ -7,7 +7,7 @@ from .run import run
 from .helpers import env
 
 
-def createcerts(names, ips=None, wd=None):
+def createcerts(names, ips=None, wd=None, silent=False):
     """Generates certificates for development purposes.
     Commands run in the directory given by ``wd`` directory which must exist.
     The CN (common name) is the first item in ``names``.
@@ -35,7 +35,7 @@ def createcerts(names, ips=None, wd=None):
     wd = env(wd, "GSTACK_CERT_DIR", "/host")
 
     # generate CA private key
-    run(["openssl", "genrsa", "-out", ca_name + ".key", "2048"], cwd=wd)
+    run(["openssl", "genrsa", "-out", ca_name + ".key", "2048"], cwd=wd, silent=silent)
     # self signed CA certificate
     run(
         [
@@ -46,9 +46,10 @@ def createcerts(names, ips=None, wd=None):
             "-out", ca_name + ".crt",
         ],
         cwd=wd,
+        silent=silent,
     )
     # generate private key
-    run(["openssl", "genrsa", "-out", cert_name + ".key", "2048"], cwd=wd)
+    run(["openssl", "genrsa", "-out", cert_name + ".key", "2048"], cwd=wd, silent=silent)
     # certificate request
     with open("/etc/ssl/openssl.cnf", "r") as f:
         orig_conf = f.read()
@@ -63,6 +64,7 @@ def createcerts(names, ips=None, wd=None):
             "-out", cert_name + ".csr", "-config", "openssl.cnf",
         ],
         cwd=wd,
+        silent=silent,
     )
     # sign the certificate with CA
     run(
@@ -74,6 +76,7 @@ def createcerts(names, ips=None, wd=None):
             ca_name + ".srl", "-extfile", "openssl.cnf",
         ],
         cwd=wd,
+        silent=silent,
     )
 
     for f in (ca_name + ".srl", ca_name + ".key", "openssl.cnf", cert_name + ".csr"):
@@ -93,9 +96,10 @@ def createcerts(names, ips=None, wd=None):
     "--ip", "-i", multiple=True,
     help="IP address the generated certificate is valid for."
 )
-def cert_cli(name, ip):
+@click.option('--silent', is_flag=True)
+def cert_cli(name, ip, silent):
     """Generates certificates for development purposes."""
 
     if not name:
         raise click.ClickException("No name given.")
-    createcerts(name, ip, os.getcwd())
+    createcerts(name, ips=ip, wd=os.getcwd(), silent=silent)
