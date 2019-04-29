@@ -133,6 +133,66 @@ def pg_pass(user, password):
     return f"md5{md5(password + user)}"
 
 
+def ask(
+    options=[], prompt='', default=None, multiple=False, yesno=False,
+    marks=[]
+):
+    """Asks the user to select one (or more) from a list of options."""
+
+    if yesno:
+        if default == 'y':
+            msg = 'Y/n'
+        elif default == 'n':
+            msg = 'y/N'
+        else:
+            msg = 'y/n'
+        while True:
+            click.echo(f'{prompt} [{msg}]: ', nl=False, err=True)
+            i = input()
+            if not i and default:
+                return True if default == 'y' else False
+            if not i:
+                continue
+            if i[0] in 'Yy':
+                return True
+            if i[0] in 'Nn':
+                return False
+
+    if not options:
+        raise ValueError('Nothing to choose from.')
+    options = [o if isinstance(o, tuple) else (o, o) for o in options]
+    if prompt:
+        click.echo(f"\n{prompt}\n", err=True)
+    else:
+        click.echo("", err=True)
+    for i, o in enumerate(options):
+        d = '•' if o[0] == default else ' '
+        m = '✓' if i in marks else ' '
+        click.echo(f"{i:>3} {m}{d} {o[1]}", err=True)
+    click.echo("", err=True)
+
+    while True:
+        length = len(options) - 1
+        if multiple:
+            msg = f'Enter selected numbers in range 0-{length}, separated by commas: '
+        else:
+            msg = f'Enter a number in range 0-{length}: '
+        click.echo(msg, err=True, nl=False)
+
+        try:
+            i = input()
+        except KeyboardInterrupt:
+            raise SystemExit()
+        if not i and default:
+            return default
+        try:
+            if multiple:
+                return set([options[int(x)][0] for x in i.split(',')])
+            return options[int(i)][0]
+        except (ValueError, IndexError):
+            continue
+
+
 @click.group(name="helpers")
 def cli():
     pass

@@ -130,7 +130,11 @@ def ensure(pg_hba_orig=None, pg_conf_orig=None, conf=None, verbose=False):
     echodone()
 
 
-def wait_for_db(timeout=10, conf=None):
+def wait_for_db(timeout=10, conf=None, verbose=False):
+    def echo(msg):
+        if verbose:
+            click.echo(f"{msg} ...")
+
     config = conf or Config()
     config_module = config.config_module
     mod = importlib.import_module(config_module)
@@ -155,17 +159,20 @@ def wait_for_db(timeout=10, conf=None):
     exitreason = "S"
     start = time.time()
     while not stopped[0]:
+        echo("trying to connect")
         try:
             _healthcheck(config)
         except Exception as e:
             now = time.time()
             if now - start > timeout:
                 exitreason = "T"
+                echo("timeout")
                 break
             time.sleep(0.5)
             continue
         else:
             exitreason = "O"
+            echo("OK")
             break
 
     signal.signal(signal.SIGTERM, original_sigterm_handler)
@@ -173,6 +180,8 @@ def wait_for_db(timeout=10, conf=None):
 
     if exitreason == "T":
         raise DatabaseNotPresent()
+    elif exitreason == "S":
+        raise SystemExit()
 
 
 @click.group(name="db")

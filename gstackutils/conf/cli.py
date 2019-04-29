@@ -56,16 +56,6 @@ def delete(name):
     except KeyError:
         raise click.ClickException(f"No such config: {name}")
 
-    # try:
-    #     value = Config().get(name, to_stdout=True)
-    # except KeyError:
-    #     raise click.ClickException(f"No such config: {name}")
-    # except ConfigMissingError:
-    #     raise click.ClickException("The config is not set and no default specified.")
-    # except (FileNotFoundError, PermissionError):
-    #     raise click.ClickException("Wrong permission or missing file.")
-    # click.echo(value, nl=False)
-
 
 @conf.command()
 @click.argument("service")

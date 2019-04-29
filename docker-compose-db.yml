@@ -1,0 +1,24 @@
+version: "3.7"
+
+networks:
+  default:
+
+services:
+  postgres:
+    image: gstackutils
+    volumes:
+      - ".:/src"
+      - ".:/host"
+    command: ["gstack", "start", "postgres"]
+    ports:
+      - 127.0.0.1:5432:5432
+
+  main:
+    build:
+      context: docker
+    image: gstackutils
+    volumes:
+      - ".:/src"
+      - ".:/host"
+    depends_on:
+      - postgres
