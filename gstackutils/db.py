@@ -28,10 +28,6 @@ def pg_init(conf):
             "sql": "CREATE EXTENSION unaccent",
         },
         {
-            "dbname": "template1",
-            "sql": "CREATE EXTENSION fuzzystrmatch",
-        },
-        {
             "sql": "CREATE ROLE django",
         },
         {

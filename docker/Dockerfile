@@ -16,10 +16,20 @@ RUN sed -ri 's/#(create_main_cluster) .*$/\1 = false/' /etc/postgresql-common/cr
 RUN apt-get update && apt-get install -y postgresql-$PG_MAJOR
 RUN apt-get update && apt-get install -y libpq-dev
 ENV PGDATA /data/postgres
+ENV PATH $PATH:/usr/lib/postgresql/$PG_MAJOR/bin
 
 # python
 ENV PYTHONUNBUFFERED 1
 RUN apt-get update && apt-get install -y python3.6 python3-pip python3-venv
+ENV PATH $PATH:/src/.venv/bin
 
-ENV PATH $PATH:/usr/lib/postgresql/$PG_MAJOR/bin:/src/.venv/bin
+# django
+ENV PYTHONPATH /src/django_project/
+RUN groupadd -r django --gid=8000 && useradd -r -m -g django --uid=8000 django
+ENV DJANGO_SETTINGS_MODULE core.settings
+# RUN pip install --no-cache-dir \
+#   django==2.2
+
+# COPY --chown=django:django / /src
+
 WORKDIR /src

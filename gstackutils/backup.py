@@ -79,6 +79,13 @@ def backup(
 def restore(files, db_backup_file, conf=None, backup_dir=None, data_files_dir=None):
     config = conf or Config()
     backup_dir = env(backup_dir, "GSTACK_BACKUP_DIR", "/host/backup")
+    extraenv = {
+        "PGHOST": "postgres",
+        "PGUSER": "postgres",
+        "PGDATABASE": "postgres",
+        "PGPASSWORD": config.get("DB_PASSWORD_POSTGRES"),
+    }
+
     if db_backup_file:
         wait_for_db(conf=config)
         db_backup_file = os.path.join(backup_dir, 'db', db_backup_file)
@@ -87,43 +94,12 @@ def restore(files, db_backup_file, conf=None, backup_dir=None, data_files_dir=No
                 'pg_restore', '-d', 'postgres', '--exit-on-error', '--verbose',
                 '--clean', '--create', db_backup_file
             ]
-            extraenv = {
-                "PGHOST": "postgres",
-                "PGUSER": "django",
-                "PGDATABASE": "django",
-                "PGPASSWORD": config.get("DB_PASSWORD_DJANGO"),
-            }
-            extraenv = {
-                "PGHOST": "postgres",
-                "PGUSER": "postgres",
-                "PGDATABASE": "postgres",
-                "PGPASSWORD": config.get("DB_PASSWORD_POSTGRES"),
-            }
             run(cmd, extraenv=extraenv)
         elif db_backup_file.endswith('.backup.sql'):
-            cmd = [
-                'psql',
-                '-c', 'DROP DATABASE django',
-                '-c', 'CREATE DATABASE django OWNER django'
-            ]
-            extraenv = {
-                "PGHOST": "postgres",
-                "PGUSER": "postgres",
-                "PGDATABASE": "postgres",
-                "PGPASSWORD": config.get("DB_PASSWORD_POSTGRES"),
-            }
-            run(cmd, extraenv=extraenv)
-
             cmd = [
                 'psql', '-v', 'ON_ERROR_STOP=1',
                 '-f', db_backup_file
             ]
-            extraenv = {
-                "PGHOST": "postgres",
-                "PGUSER": "django",
-                "PGDATABASE": "django",
-                "PGPASSWORD": config.get("DB_PASSWORD_DJANGO"),
-            }
             run(cmd, extraenv=extraenv)
 
     if files:

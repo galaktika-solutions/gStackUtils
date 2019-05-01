@@ -5,6 +5,7 @@ import click
 from .conf import Config
 from .db import ensure
 from .run import run
+from .exceptions import ServiceNotFound
 
 
 def start_postgres(conf):
@@ -25,7 +26,10 @@ def start(service, conf=None):
         _starters = mod.STARTERS
     else:
         _starters = {}
-    starter = _starters.get(service, STARTERS[service])
+    try:
+        starter = _starters.get(service, STARTERS[service])
+    except KeyError:
+        raise ServiceNotFound()
     starter(config)
 
 
@@ -34,5 +38,5 @@ def start(service, conf=None):
 def cli(service):
     try:
         start(service)
-    except KeyError:
+    except ServiceNotFound:
         raise click.ClickException(f"Service does not exist: {service}")

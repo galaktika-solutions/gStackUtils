@@ -1,3 +1,6 @@
+import random as rnd
+import string
+
 import click
 
 from .config import Config
@@ -18,9 +21,20 @@ def inspect():
 @click.argument("name")
 @click.argument("value", required=False)
 @click.option('--no-validate', is_flag=True)
-def set(name, value, no_validate):
+@click.option('--random', "-r", type=int)
+@click.option("--prompt", "-p", is_flag=True)
+def set(name, value, no_validate, random, prompt):
+    if random:
+        value = ''.join(
+            rnd.choice(
+                string.ascii_letters + string.digits + string.punctuation
+            ) for _ in range(random)
+        )
     if value is None:
-        value = click.get_binary_stream("stdin").read()
+        if prompt:
+            value = input("Value: ").encode()
+        else:
+            value = click.get_binary_stream("stdin").read()
     else:
         value = value.encode()
     try:

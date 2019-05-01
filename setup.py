@@ -38,6 +38,7 @@ setup(
             "sphinx_rtd_theme >= 0.4.2",
             "twine >= 1.12.1",
             "wheel >= 0.32.3",
+            "django >= 2.2",
         ]
     },
     entry_points={

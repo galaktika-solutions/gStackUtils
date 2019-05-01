@@ -4,3 +4,7 @@ class ImproperlyConfigured(Exception):
 
 class DatabaseNotPresent(Exception):
     pass
+
+
+class ServiceNotFound(Exception):
+    pass
