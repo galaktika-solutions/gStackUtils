@@ -10,6 +10,7 @@ from .validators import (
     MinLengthValidator, MaxLengthValidator, TypeValidator, PrivateKeyValidator,
     CertificateValidator
 )
+from .helpers import uid as _uid, gid as _gid
 
 
 class NotSet:
@@ -19,6 +20,7 @@ class NotSet:
 class ConfigField:
     ENV_REGEX = re.compile(r"^\s*([^#].*?)=(.*)$")
     hide_input = False
+    services = {}
 
     def __init__(self, default=NotSet(), help_text=None, validators=[]):
         self.default = default
@@ -186,8 +188,8 @@ class SecretConfigField(EnvConfigField):
 
     def set_app(self, value, service=None):
         s = self.services.get(service, {})
-        uid = s.get("uid", 0)
-        gid = s.get("gid", uid)
+        uid = _uid(s.get("uid", 0))
+        gid = _gid(s.get("gid", uid))
         mode = s.get("mode", 0o400)
         fn = os.path.join(self.config.secret_dir, self.name)
         with open(fn, "w") as f:
@@ -270,8 +272,8 @@ class FileMixin:
 
     def set_app(self, value, service=None):
         s = self.services.get(service, {})
-        uid = s.get("uid", 0)
-        gid = s.get("gid", uid)
+        uid = _uid(s.get("uid", 0))
+        gid = _gid(s.get("gid", uid))
         mode = s.get("mode", 0o400)
         fn = os.path.join(self.config.secret_dir, self.name)
         with open(fn, "wb") as f:

@@ -16,8 +16,12 @@ class PYPI_CREDENTIALS(Section):
 
 class POSTGRES(Section):
     DB_PASSWORD_POSTGRES = SecretString(min_length=8)
-    DB_PASSWORD_DJANGO = SecretString(min_length=8)
-    DB_PASSWORD_EXPLORER = SecretString(min_length=8)
+    DB_PASSWORD_DJANGO = SecretString(min_length=8, services={
+        "django": ["django"],
+    })
+    DB_PASSWORD_EXPLORER = SecretString(min_length=8, services={
+        "django": ["django"],
+    })
 
 
 class DJANGO(Section):

@@ -1,21 +1,26 @@
 version: "3.7"
 
-# volumes:
-#   data:
-
 networks:
   default:
 
 services:
-  # postgres:
-  #   image: gstackutils
-  #   volumes:
-  #     - "data:/data"
-  #     - ".:/src"
-  #     - ".:/host"
-  #   command: ["gstack", "db", "start"]
-  #   ports:
-  #     - 127.0.0.1:5432:5432
+  postgres:
+    image: gstackutils
+    volumes:
+      - ".:/src"
+      - ".:/host"
+    command: ["gstack", "start", "postgres"]
+    ports:
+      - 127.0.0.1:5432:5432
+
+  django:
+    image: gstackutils
+    volumes:
+      - ".:/src"
+      - ".:/host"
+    command: ["gstack", "start", "django"]
+    ports:
+      - 127.0.0.1:80:8000
 
   main:
     build:
@@ -24,4 +29,5 @@ services:
     volumes:
       - ".:/src"
       - ".:/host"
-      # - "data:/data"
+    # depends_on:
+    #   - postgres

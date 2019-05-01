@@ -4,7 +4,7 @@
 #
 # from django.utils.translation import ugettext_lazy as _
 # from gdockutils import read_secret_from_file
-from gstackutils.conf import Config
+from gstackutils.config import Config
 
 
 # BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -33,18 +33,18 @@ DEBUG = True
 # EMAIL_BACKEND = 'mailer.backend.DbBackend'
 # MAILER_EMAIL_BACKEND = 'core.rewrite_email_backend.EmailBackend'
 # MAILER_LOCK_PATH = '/tmp/mailer_lock'
-#
-#
-# STATIC_URL = '/static/'
+
+
+STATIC_URL = '/static/'
 # STATIC_ROOT = '/src/static/'
 # STATICFILES_FINDERS = (
 #     'django.contrib.staticfiles.finders.AppDirectoriesFinder',
 # )
-#
+
 # MEDIA_ROOT = '/data/files/media/'
 # MEDIA_URL = '/media/'
-#
-# ROOT_URLCONF = 'core.urls'
+
+ROOT_URLCONF = 'core.urls'
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
@@ -130,7 +130,7 @@ TEMPLATES = [
     },
 ]
 
-# WSGI_APPLICATION = 'core.wsgi.application'
+WSGI_APPLICATION = 'core.wsgi.application'
 # # ASGI_APPLICATION = "core.routing.application"
 #
 # # CHANNEL_LAYERS = {

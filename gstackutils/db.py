@@ -17,15 +17,12 @@ from .helpers import env, pg_pass
 def pg_init(conf):
     postgres_pass = pg_pass("postgres", conf.get("DB_PASSWORD_POSTGRES"))
     django_pass = pg_pass("django", conf.get("DB_PASSWORD_DJANGO"))
+    explorer_pass = pg_pass("django", conf.get("DB_PASSWORD_EXPLORER"))
 
     return([
         {
             "sql": "ALTER ROLE postgres ENCRYPTED PASSWORD %s",
             "params": (postgres_pass,),
-        },
-        {
-            "dbname": "template1",
-            "sql": "CREATE EXTENSION unaccent",
         },
         {
             "sql": "CREATE ROLE django",
@@ -35,8 +32,28 @@ def pg_init(conf):
             "params": (django_pass,),
         },
         {
+            "sql": "CREATE ROLE explorer",
+        },
+        {
+            "sql": "ALTER ROLE explorer ENCRYPTED PASSWORD %s LOGIN",
+            "params": (explorer_pass,),
+        },
+        {
             "user": "django",
             "sql": "CREATE DATABASE django",
+        },
+        {
+            "user": "django", "dbname": "django",
+            "sql": "CREATE SCHEMA django",
+        },
+        {
+            "user": "django", "dbname": "django",
+            "sql": "GRANT SELECT ON ALL TABLES IN SCHEMA django TO explorer",
+        },
+        {
+            "user": "django", "dbname": "django",
+            "sql": "ALTER DEFAULT PRIVILEGES FOR USER django IN SCHEMA django "
+                   "GRANT SELECT ON TABLES TO explorer",
         },
     ])
 
@@ -113,6 +130,7 @@ def ensure(pg_hba_orig=None, pg_conf_orig=None, conf=None, verbose=False):
                 except (
                     psycopg2.errors.DuplicateObject,
                     psycopg2.errors.DuplicateDatabase,
+                    psycopg2.errors.DuplicateSchema,
                 ):
                     echodone("OK (existed)")
                 else:

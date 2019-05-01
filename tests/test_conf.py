@@ -35,6 +35,7 @@ class ConfTestCase(unittest.TestCase):
         del os.environ["GSTACK_THEME"]
         del os.environ["GSTACK_PG_HBA_ORIG"]
         del os.environ["GSTACK_PG_CONF_ORIG"]
+        os.rmdir(".git")
         os.chdir("/src")
 
 

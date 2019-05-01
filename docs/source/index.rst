@@ -1,16 +1,17 @@
 ===========
 gstackutils
 ===========
-
+-------------------------------------------------
+The workhorse of the ``galaktika.gstack`` project
+-------------------------------------------------
 
 .. toctree::
 
    config
 
 
-----------------------
 Command Line Interface
-----------------------
+======================
 
 ``cert``
 ........
@@ -32,4 +33,4 @@ Command Line Interface
 API
 ---
 
-.. autofunction:: gstackutils.createcerts
+.. autofunction:: gstackutils.cert.createcerts
