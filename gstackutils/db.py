@@ -7,10 +7,10 @@ import sys
 import click
 import psycopg2
 
-from . import ImproperlyConfigured, DatabaseNotPresent
+from .exceptions import ImproperlyConfigured, DatabaseNotPresent
 from .helpers import uid, gid, cp
 from .run import run
-from .conf import Config
+from .config import Config
 from .helpers import env, pg_pass
 
 

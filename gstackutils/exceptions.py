@@ -8,3 +8,19 @@ class DatabaseNotPresent(Exception):
 
 class ServiceNotFound(Exception):
     pass
+
+
+class ConfigMissingError(Exception):
+    pass
+
+
+class ValidationError(Exception):
+    pass
+
+
+class DefaultUsedException(Exception):
+    pass
+
+
+class PermissionDenied(Exception):
+    pass

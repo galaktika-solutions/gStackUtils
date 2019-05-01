@@ -2,7 +2,7 @@ import importlib
 
 import click
 
-from .conf import Config
+from .config import Config
 from .db import ensure
 from .run import run
 from .exceptions import ServiceNotFound

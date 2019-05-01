@@ -3,8 +3,9 @@ import os
 import base64
 import subprocess
 
-from .exceptions import ConfigMissingError, DefaultUsedException, ValidationError
-from ..exceptions import ImproperlyConfigured
+from .exceptions import (
+    ConfigMissingError, DefaultUsedException, ValidationError, ImproperlyConfigured
+)
 from .validators import (
     MinLengthValidator, MaxLengthValidator, TypeValidator, PrivateKeyValidator,
     CertificateValidator

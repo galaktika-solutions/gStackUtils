@@ -2,7 +2,7 @@ import subprocess
 import os
 
 from gstackutils.db import ensure, wait_for_db
-from gstackutils import DatabaseNotPresent
+from gstackutils.exceptions import DatabaseNotPresent
 from .test_conf import ConfTestCase
 
 

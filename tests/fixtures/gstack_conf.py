@@ -1,6 +1,7 @@
 import psycopg2
 
-from gstackutils.conf import Section, EnvString, SecretString, EnvBool
+from gstackutils.config import Section
+from gstackutils.fields import EnvString, SecretString, EnvBool
 from gstackutils.helpers import pg_pass
 
 

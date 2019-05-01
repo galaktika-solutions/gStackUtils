@@ -3,7 +3,7 @@ import importlib
 
 import click
 
-from .conf.cli import conf
+from .config import conf
 from .run import run_cli
 from .db import cli as db_cli
 from .cert import cert_cli

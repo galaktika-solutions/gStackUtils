@@ -1,4 +1,5 @@
-from gstackutils.conf import Section, EnvString
+from gstackutils.config import Section
+from gstackutils.fields import EnvString
 
 
 class First(Section):

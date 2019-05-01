@@ -1,11 +1,12 @@
 import psycopg2
 # import click
 
-from gstackutils.conf import (
-    Section, EnvString, SecretString, EnvBool, EnvFile, SecretFile,
+from gstackutils.config import Section
+from gstackutils.helpers import pg_pass
+from gstackutils.fields import (
+    EnvString, SecretString, EnvBool, EnvFile, SecretFile,
     SSLPrivateKey, SSLCertificate
 )
-from gstackutils.helpers import pg_pass
 
 
 class PYPI_CREDENTIALS(Section):

@@ -2,7 +2,8 @@ import unittest
 import unittest.mock
 import os
 
-from gstackutils import run, ImproperlyConfigured
+from gstackutils.run import run
+from gstackutils.exceptions import ImproperlyConfigured
 
 
 class TestRun(unittest.TestCase):

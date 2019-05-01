@@ -4,7 +4,7 @@ from click.testing import CliRunner
 
 from .test_conf import ConfTestCase
 from gstackutils.cli import cli
-from gstackutils import run
+from gstackutils.run import run
 
 
 class TestConfCLI(ConfTestCase):
@@ -14,30 +14,27 @@ class TestConfCLI(ConfTestCase):
         self.assertTrue(result.output.find("ANIMAL . duck") >= 0)
         self.assertTrue(result.output.find("LIKES ?") >= 0)
 
-        runner.invoke(cli, ["conf", "set", "ANIMAL", "myduck"])
+        runner.invoke(cli, ["conf", "set", "-n", "ANIMAL", "-v", "myduck"])
         result = runner.invoke(cli, ["conf", "inspect"])
-        # print(result.output)
         self.assertTrue(result.output.find("ANIMAL   myduck") >= 0)
 
-        result = runner.invoke(cli, ["conf", "set", "LIKES", "me"])
-        # print(result.output)
+        result = runner.invoke(cli, ["conf", "set", "-n", "LIKES", "-v", "me"])
         self.assertTrue(result.output.find("Error") >= 0)
 
-        runner.invoke(cli, ["conf", "set", "--no-validate", "LIKES", "me"])
+        runner.invoke(cli, ["conf", "set", "--no-validate", "-n", "LIKES", "-v", "me"])
         result = runner.invoke(cli, ["conf", "inspect"])
-        # print(result.output)
         self.assertTrue(result.output.find("LIKES !") >= 0)
 
     def test_setget(self):
         runner = CliRunner(mix_stderr=False)
 
-        result = runner.invoke(cli, ["conf", "set", "XXX", "cat"])
+        result = runner.invoke(cli, ["conf", "set", "-n", "XXX", "-v", "cat"])
         self.assertEqual(result.stderr.strip(), "Error: No such config: XXX")
 
-        result = runner.invoke(cli, ["conf", "set", "LIKES", "me"])
+        result = runner.invoke(cli, ["conf", "set", "-n", "LIKES", "-v", "me"])
         self.assertEqual(result.stderr.strip(), "Error: Too short (2 < 5)")
 
-        result = runner.invoke(cli, ["conf", "set", "ANIMAL", "cat"])
+        result = runner.invoke(cli, ["conf", "set", "-n", "ANIMAL", "-v", "cat"])
         result = runner.invoke(cli, ["conf", "get", "ANIMAL"])
         self.assertEqual(result.output, "cat")
 
@@ -59,9 +56,9 @@ class TestConfCLI(ConfTestCase):
 
     def test_prepare(self):
         runner = CliRunner()
-        runner.invoke(cli, ["conf", "set", "LIKES", "green stuff"])
-        runner.invoke(cli, ["conf", "set", "COLOR", "yellow"])
-        runner.invoke(cli, ["conf", "set", "SAIS", "quaackk"])
+        runner.invoke(cli, ["conf", "set", "-n", "LIKES", "-v", "green stuff"])
+        runner.invoke(cli, ["conf", "set", "-n", "COLOR", "-v", "yellow"])
+        runner.invoke(cli, ["conf", "set", "-n", "SAIS", "-v", "quaackk"])
         runner.invoke(cli, ["conf", "prepare", "test"])
         with open(os.path.join(os.environ["GSTACK_SECRET_DIR"], "SAIS"), "r") as f:
             self.assertEqual(f.read(), "quaackk")

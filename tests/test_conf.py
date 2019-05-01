@@ -1,9 +1,9 @@
 import unittest
 import os
 
-from gstackutils.conf import Config
-from gstackutils.conf import EnvString  # , SecretString, Config
-from gstackutils.conf import ConfigMissingError  # , ValidationError
+from gstackutils.config import Config
+from gstackutils.fields import EnvString  # , SecretString, Config
+from gstackutils.exceptions import ConfigMissingError  # , ValidationError
 # from gstackutils import ImproperlyConfigured
 
 

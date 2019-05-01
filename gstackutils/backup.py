@@ -4,7 +4,7 @@ import os
 
 import click
 
-from .conf import Config
+from .config import Config
 from .db import wait_for_db
 from .helpers import env, ask, uid, gid
 from .run import run
