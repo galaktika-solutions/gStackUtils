@@ -134,6 +134,13 @@ class Config:
                 value = f[2]
                 click.echo(f"    {name:>{max_name}} {flag} {value}")
 
+    def fieldbyname(self, name):
+        try:
+            field, _ = self.field_map[name]
+        except KeyError:
+            raise KeyError(f"No such config: {name}")
+        return field
+
     def get(self, name, root=None, to_stdout=False, default=None):
         root = self.root_mode if root is None else root
         if not self.root_mode and root:

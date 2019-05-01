@@ -17,6 +17,7 @@ class NotSet:
 
 class ConfigField:
     ENV_REGEX = re.compile(r"^\s*([^#].*?)=(.*)$")
+    hide_input = False
 
     def __init__(self, default=NotSet(), help_text=None, validators=[]):
         self.default = default
@@ -138,6 +139,8 @@ class EnvConfigField(ConfigField):
 
 
 class SecretConfigField(EnvConfigField):
+    hide_input = True
+
     def __init__(self, services={}, **kwargs):
         self.services = {}
         for s, ugm in services.items():
