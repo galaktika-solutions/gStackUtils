@@ -3,11 +3,12 @@ import importlib
 import inspect
 import random as rnd
 import string
+import re
 
 import click
 
-from .helpers import path_check, ask, env
-from .fields import ConfigField
+from .helpers import path_check, ask
+from .fields import ConfigField, SecretConfigField
 from .exceptions import (
     DefaultUsedException,
     ConfigMissingError,
@@ -37,11 +38,7 @@ class Config:
     def __init__(
         self,
         config_module=None,
-        env_file_path=None,
-        secret_file_path=None,
-        secret_dir=None,
         root_mode=None,
-        theme=None,
     ):
         stat = os.stat(".")
         self.pu, self.pg = stat.st_uid, stat.st_gid  # project user & group
@@ -56,23 +53,30 @@ class Config:
         if not self.is_dev:
             path_check("d", "/host", 0, 0, 0o22)
 
-        self.config_module = env(config_module, "GSTACK_CONFIG_MODULE", "config.gstack_conf")
-        self.env_file_path = env(env_file_path, "GSTACK_ENV_FILE", "/host/.env")
-        self.secret_file_path = env(secret_file_path, "GSTACK_SECRET_FILE", "/host/.secret.env")
-        self.secret_dir = env(secret_dir, "GSTACK_SECRET_DIR", "/run/secrets")
-        self.theme = env(theme, "GSTACK_THEME", "colors")
+        cm = (
+            config_module or
+            os.environ.get("GSTACK_CONFIG_MODULE") or
+            "gstackutils.default_gstack_conf"
+        )
+        self.config_module = importlib.import_module(cm)
+        self.default_config_module = importlib.import_module("gstackutils.default_gstack_conf")
+
+        self.env_file_path = self.env("GSTACK_ENV_FILE", "/host/.env")
+        self.secret_file_path = self.env("GSTACK_SECRET_FILE", "/host/.secret.env")
+        self.secret_dir = self.env("GSTACK_SECRET_DIR", "/run/secrets")
+        self.theme = self.env("GSTACK_THEME", "colors")
 
         path_check("f", self.env_file_path, self.pu, self.pg, 0o133, self.root_mode)
         path_check("f", self.secret_file_path, self.pu, self.pg, 0o177, self.root_mode)
         path_check("d", self.secret_dir, self.pu, self.pg, 0o22, self.root_mode)
 
-        mod = importlib.import_module(self.config_module)
+        # mod = importlib.import_module(self.config_module)
 
         fields = []
         self.field_names = set()
 
         sections = [
-            c for c in mod.__dict__.values()
+            c for c in self.config_module.__dict__.values()
             if inspect.isclass(c) and issubclass(c, Section) and c != Section
         ]
         for S in sections:
@@ -97,6 +101,13 @@ class Config:
         self.fields = fields
         self.field_map = dict([(fn, (fi, si)) for fn, fi, si in self.fields])
         # instance._check_config()
+
+    def env(self, name, default):
+        if hasattr(self.config_module, name):
+            return getattr(self.config_module, name)
+        if hasattr(self.default_config_module, name):
+            return getattr(self.default_config_module, name)
+        return default
 
     def inspect(self):
         if not self.root_mode:
@@ -135,6 +146,44 @@ class Config:
                 value = f[2]
                 click.echo(f"    {name:>{max_name}} {flag} {value}")
 
+        regex = r"([^#^\s^=]+)="
+        obsolete = []
+        with open(self.env_file_path, "r") as f:
+            for l in f.readlines():
+                m = re.match(regex, l)
+                if m:
+                    confname = m.group(1)
+                    try:
+                        f = self.fieldbyname(confname)
+                        if isinstance(f, SecretConfigField):
+                            obsolete.append(confname)
+                    except KeyError:
+                        obsolete.append(confname)
+        if obsolete:
+            click.echo()
+            click.echo("Obsolete environment config:")
+            for n in obsolete:
+                click.secho(f"    {n}", fg="red")
+
+        obsolete = []
+        with open(self.secret_file_path, "r") as f:
+            for l in f.readlines():
+                m = re.match(regex, l)
+                if m:
+                    confname = m.group(1)
+                    try:
+                        f = self.fieldbyname(confname)
+                        if not isinstance(f, SecretConfigField):
+                            obsolete.append(confname)
+                    except KeyError:
+                        obsolete.append(confname)
+        if obsolete:
+            click.echo()
+            click.echo("Obsolete secret config:")
+            for n in obsolete:
+                click.secho(f"    {n}", fg="red")
+
+    # def _obsolate(self, path):
     def fieldbyname(self, name):
         try:
             field, _ = self.field_map[name]

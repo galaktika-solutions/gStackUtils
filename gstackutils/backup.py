@@ -6,7 +6,7 @@ import click
 
 from .config import Config
 from .db import wait_for_db
-from .helpers import env, ask, uid, gid
+from .helpers import ask, uid, gid
 from .run import run
 
 
@@ -37,20 +37,19 @@ def set_files_perms(data_files_dir):
 
 
 def backup(
-    dbformat="custom", files=True, conf=None, prefix=None, backup_dir=None,
+    dbformat="custom", files=True, conf=None, backup_dir=None,
     backup_uid=None, backup_gid=None, data_files_dir=None
 ):
-    # print(dbformat, files)
     config = conf or Config()
-    backup_dir = env(backup_dir, "GSTACK_BACKUP_DIR", "/host/backup")
-    backup_uid = env(backup_uid, "GSTACK_BACKUP_UID", config.pu)
-    backup_gid = env(backup_gid, ("GSTACK_BACKUP_GID", "GSTACK_BACKUP_UID"), config.pg)
+    backup_dir = backup_dir or config.env("GSTACK_BACKUP_DIR", "/host/backup")
+    backup_uid = backup_uid or config.env("GSTACK_BACKUP_UID", config.pu)
+    backup_gid = backup_gid or config.env(("GSTACK_BACKUP_GID", "GSTACK_BACKUP_UID"), config.pg)
     set_backup_perms(backup_dir, backup_uid, backup_gid)
 
     if dbformat:
         wait_for_db(conf=config)
         timestamp = time.strftime('%Y-%m-%d-%H-%M-%S', time.gmtime())
-        prefix = env(prefix, "GSTACK_DB_BACKUP_PREFIX", config.get("HOST_NAME", default="backup"))
+        prefix = config.env("GSTACK_DB_BACKUP_PREFIX", "gstack")
         filename = f"{prefix}-db-{timestamp}.backup"
         if dbformat == 'plain':
             filename += '.sql'
@@ -65,7 +64,7 @@ def backup(
         run(cmd, extraenv=extraenv)
 
     if files:
-        source = env(data_files_dir, "GSTACK_DATA_FILES_DIR", "/data/files")
+        source = data_files_dir or config.env("GSTACK_DATA_FILES_DIR", "/data/files")
         if source[-1] != '/':
             source += '/'
         cmd = [
@@ -78,7 +77,7 @@ def backup(
 
 def restore(files, db_backup_file, conf=None, backup_dir=None, data_files_dir=None):
     config = conf or Config()
-    backup_dir = env(backup_dir, "GSTACK_BACKUP_DIR", "/host/backup")
+    backup_dir = backup_dir or config.env("GSTACK_BACKUP_DIR", "/host/backup")
     extraenv = {
         "PGHOST": "postgres",
         "PGUSER": "postgres",
@@ -103,7 +102,7 @@ def restore(files, db_backup_file, conf=None, backup_dir=None, data_files_dir=No
             run(cmd, extraenv=extraenv)
 
     if files:
-        data_files_dir = env(data_files_dir, "GSTACK_DATA_FILES_DIR", "/data/files")
+        data_files_dir = data_files_dir or config.env("GSTACK_DATA_FILES_DIR", "/data/files")
         cmd = [
             'rsync', '-v', '-a', '--delete', '--stats',
             os.path.join(backup_dir, 'files/'), data_files_dir
@@ -134,8 +133,10 @@ def backup_cli(dbformat, files, backupdir, uid, gid, data_files_dir):
 @click.option("--backupdir", "-b", type=click.Path(file_okay=False))
 @click.option("--data-files-dir", type=click.Path(file_okay=False))
 def restore_cli(files, db, db_backup_file, backupdir, data_files_dir):
+    config = Config()
     if db and db_backup_file is None:
-        db_backup_dir = os.path.join(env(backupdir, "GSTACK_BACKUP_DIR", "/host/backup"), "db")
+        backupdir = backupdir or config.env("GSTACK_BACKUP_DIR", "/host/backup")
+        db_backup_dir = os.path.join(backupdir, "db")
         entries = os.listdir(db_backup_dir)
         entries = sorted([
             e
@@ -151,5 +152,4 @@ def restore_cli(files, db, db_backup_file, backupdir, data_files_dir):
             db_backup_file = entries[0]
         else:
             db_backup_file = ask(entries, prompt='Which db backup file would you like to use?')
-    print(db_backup_file)
-    restore(files, db_backup_file)
+    restore(files, db_backup_file, conf=config, backup_dir=backupdir, data_files_dir=data_files_dir)

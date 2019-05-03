@@ -10,18 +10,6 @@ import click
 from .exceptions import ImproperlyConfigured
 
 
-def env(var, env, default):
-    if var:
-        return var
-    if not isinstance(env, (list, tuple)):
-        env = [env]
-    for v in env:
-        var = os.environ.get(v)
-        if var is not None:
-            return var
-    return default
-
-
 def path_check(typ, path, uid=None, gid=None, mask=None, fix=False):
     if typ == "f" and not os.path.isfile(path):
         if fix:

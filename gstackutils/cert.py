@@ -4,10 +4,10 @@ import os
 import click
 
 from .run import run
-from .helpers import env
+from .config import Config
 
 
-def createcerts(names, ips=None, wd=None, silent=False):
+def createcerts(names, ips=None, wd=None, silent=False, conf=None):
     """Generates certificates for development purposes.
     Commands run in the directory given by ``wd`` directory which must exist.
     The CN (common name) is the first item in ``names``.
@@ -24,6 +24,7 @@ def createcerts(names, ips=None, wd=None, silent=False):
         The default is ``/host``.
     """
 
+    config = conf or Config()
     ips = ips or []
     cn = names[0]
     spec = ["DNS:%s" % n for n in names]
@@ -32,7 +33,7 @@ def createcerts(names, ips=None, wd=None, silent=False):
     timestamp = time.strftime("%Y-%m-%d-%H-%M-%S", time.gmtime())
     ca_name = "%s-ca-%s" % (cn, timestamp)
     cert_name = "%s-%s" % (cn, timestamp)
-    wd = env(wd, "GSTACK_CERT_DIR", "/host")
+    wd = wd or config.env("GSTACK_CERT_DIR", "/host")
 
     # generate CA private key
     run(["openssl", "genrsa", "-out", ca_name + ".key", "2048"], cwd=wd, silent=silent)

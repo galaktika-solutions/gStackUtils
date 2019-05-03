@@ -60,7 +60,7 @@ class TestConfCLI(ConfTestCase):
         runner.invoke(cli, ["conf", "set", "-n", "COLOR", "-v", "yellow"])
         runner.invoke(cli, ["conf", "set", "-n", "SAIS", "-v", "quaackk"])
         runner.invoke(cli, ["conf", "prepare", "test"])
-        with open(os.path.join(os.environ["GSTACK_SECRET_DIR"], "SAIS"), "r") as f:
+        with open(os.path.join("secrets", "SAIS"), "r") as f:
             self.assertEqual(f.read(), "quaackk")
         result = runner.invoke(cli, ["conf", "get", "SAIS"])
         self.assertEqual(result.output, "quaackk")

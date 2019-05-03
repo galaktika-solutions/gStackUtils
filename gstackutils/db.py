@@ -1,5 +1,4 @@
 import os
-import importlib
 import time
 import signal
 import sys
@@ -11,62 +10,9 @@ from .exceptions import ImproperlyConfigured, DatabaseNotPresent
 from .helpers import uid, gid, cp
 from .run import run
 from .config import Config
-from .helpers import env, pg_pass
 
 
-def pg_init(conf):
-    postgres_pass = pg_pass("postgres", conf.get("DB_PASSWORD_POSTGRES"))
-    django_pass = pg_pass("django", conf.get("DB_PASSWORD_DJANGO"))
-    explorer_pass = pg_pass("django", conf.get("DB_PASSWORD_EXPLORER"))
-
-    return([
-        {
-            "sql": "ALTER ROLE postgres ENCRYPTED PASSWORD %s",
-            "params": (postgres_pass,),
-        },
-        {
-            "sql": "CREATE ROLE django",
-        },
-        {
-            "sql": "ALTER ROLE django ENCRYPTED PASSWORD %s LOGIN CREATEDB",
-            "params": (django_pass,),
-        },
-        {
-            "sql": "CREATE ROLE explorer",
-        },
-        {
-            "sql": "ALTER ROLE explorer ENCRYPTED PASSWORD %s LOGIN",
-            "params": (explorer_pass,),
-        },
-        {
-            "user": "django",
-            "sql": "CREATE DATABASE django",
-        },
-        {
-            "user": "django", "dbname": "django",
-            "sql": "CREATE SCHEMA django",
-        },
-        {
-            "user": "django", "dbname": "django",
-            "sql": "GRANT SELECT ON ALL TABLES IN SCHEMA django TO explorer",
-        },
-        {
-            "user": "django", "dbname": "django",
-            "sql": "ALTER DEFAULT PRIVILEGES FOR USER django IN SCHEMA django "
-                   "GRANT SELECT ON TABLES TO explorer",
-        },
-    ])
-
-
-def healthcheck(conf):
-    dbname = "django"
-    user = "django"
-    password = conf.get("DB_PASSWORD_DJANGO")
-    host = "postgres"
-    psycopg2.connect(dbname=dbname, user=user, password=password, host=host)
-
-
-def ensure(pg_hba_orig=None, pg_conf_orig=None, conf=None, verbose=False):
+def ensure(conf=None, verbose=False):
     def echo(msg):
         if verbose:
             click.echo(f"{msg} ...", nl=False)
@@ -75,10 +21,9 @@ def ensure(pg_hba_orig=None, pg_conf_orig=None, conf=None, verbose=False):
         if verbose:
             click.echo(f" {msg}")
 
-    pg_hba_orig = env(pg_hba_orig, "GSTACK_PG_HBA_ORIG", "config/pg_hba.conf")
-    pg_conf_orig = env(pg_conf_orig, "GSTACK_PG_CONF_ORIG", "config/postgresql.conf")
     config = conf or Config()
-    config_module = config.config_module
+    pg_hba_orig = config.env("GSTACK_PG_HBA_ORIG", "config/pg_hba.conf")
+    pg_conf_orig = config.env("GSTACK_PG_CONF_ORIG", "config/postgresql.conf")
     pgdata = os.environ.get('PGDATA')
 
     if not pgdata:
@@ -110,11 +55,11 @@ def ensure(pg_hba_orig=None, pg_conf_orig=None, conf=None, verbose=False):
     run(cmd, usr="postgres", silent=True)
     echodone()
 
-    mod = importlib.import_module(config_module)
-    if hasattr(mod, "pg_init"):
-        _pg_init = mod.pg_init
+    if hasattr(config.config_module, "pg_init"):
+        _pg_init = config.config_module.pg_init
     else:
-        _pg_init = pg_init
+        from . import default_gstack_conf
+        _pg_init = default_gstack_conf.pg_init
     for action in _pg_init(config):
         dbname = action.get("dbname", "postgres")
         user = action.get("user", "postgres")
@@ -150,12 +95,11 @@ def wait_for_db(timeout=10, conf=None, verbose=False):
             click.echo(f"{msg} ...")
 
     config = conf or Config()
-    config_module = config.config_module
-    mod = importlib.import_module(config_module)
-    if hasattr(mod, "healthcheck"):
-        _healthcheck = mod.healthcheck
+    if hasattr(config.config_module, "healthcheck"):
+        _healthcheck = config.config_module.healthcheck
     else:
-        _healthcheck = healthcheck
+        from . import default_gstack_conf
+        _healthcheck = default_gstack_conf.healthcheck
     stopped = [False]  # easier to use variable in the handler
 
     # we need a signal handling mechanism because:

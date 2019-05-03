@@ -12,29 +12,17 @@ class ConfTestCase(unittest.TestCase):
         os.chdir("tests/fixtures")
         os.makedirs(".git", exist_ok=True)
         os.environ["GSTACK_CONFIG_MODULE"] = "gstack_conf"
-        os.environ["GSTACK_ENV_FILE"] = ".env"
-        os.environ["GSTACK_SECRET_FILE"] = ".secret.env"
-        os.environ["GSTACK_SECRET_DIR"] = "secrets"
-        os.environ["GSTACK_THEME"] = "simple"
-        os.environ["GSTACK_PG_HBA_ORIG"] = "pg_hba.conf"
-        os.environ["GSTACK_PG_CONF_ORIG"] = "postgresql.conf"
 
     def tearDown(self):
-        if os.path.isfile(os.environ["GSTACK_ENV_FILE"]):
-            os.remove(os.environ["GSTACK_ENV_FILE"])
-        if os.path.isfile(os.environ["GSTACK_SECRET_FILE"]):
-            os.remove(os.environ["GSTACK_SECRET_FILE"])
-        if os.path.isdir(os.environ["GSTACK_SECRET_DIR"]):
-            for f in os.listdir(os.environ["GSTACK_SECRET_DIR"]):
-                os.remove(os.path.join(os.environ["GSTACK_SECRET_DIR"], f))
-            os.rmdir(os.environ["GSTACK_SECRET_DIR"])
-        del os.environ["GSTACK_ENV_FILE"]
-        del os.environ["GSTACK_SECRET_FILE"]
-        del os.environ["GSTACK_SECRET_DIR"]
+        if os.path.isfile(".env"):
+            os.remove(".env")
+        if os.path.isfile(".secret.env"):
+            os.remove(".secret.env")
+        if os.path.isdir("secrets"):
+            for f in os.listdir("secrets"):
+                os.remove(os.path.join("secrets", f))
+            os.rmdir("secrets")
         del os.environ["GSTACK_CONFIG_MODULE"]
-        del os.environ["GSTACK_THEME"]
-        del os.environ["GSTACK_PG_HBA_ORIG"]
-        del os.environ["GSTACK_PG_CONF_ORIG"]
         os.rmdir(".git")
         os.chdir("/src")
 
@@ -54,7 +42,7 @@ class TestConf(ConfTestCase):
         conf = Config()
         conf.set("ANIMAL", "dog")
         # peek in the file
-        with open(os.environ["GSTACK_ENV_FILE"], "r") as f:
+        with open(".env", "r") as f:
             self.assertEqual(f.read(), "ANIMAL=dog\n")
         self.assertEqual(conf.get("ANIMAL"), "dog")
 

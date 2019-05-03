@@ -27,6 +27,7 @@ ENV PATH $PATH:/src/.venv/bin
 ENV PYTHONPATH /src/django_project/
 RUN groupadd -r django --gid=8000 && useradd -r -m -g django --uid=8000 django
 ENV DJANGO_SETTINGS_MODULE core.settings
+ENV GSTACK_CONFIG_MODULE config.gstack_conf
 # RUN pip install --no-cache-dir \
 #   django==2.2
 
