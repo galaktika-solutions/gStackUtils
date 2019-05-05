@@ -141,7 +141,7 @@ class EnvConfigField(ConfigField):
         pass
 
 
-class SecretConfigField(EnvConfigField):
+class SecretConfigField(ConfigField):
     hide_input = True
 
     def __init__(self, services={}, **kwargs):
@@ -227,6 +227,7 @@ class EnvBool(EnvConfigField):
         super().__init__(validators=validators, **kwargs)
 
     def _from_str(self, s):
+        # print(f"_from_str {self.name}: {s}")
         if s == "True":
             return True
         elif s == "False":

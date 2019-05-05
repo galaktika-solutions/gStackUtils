@@ -9,9 +9,11 @@ from gstackutils.config import Config
 
 # BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 config = Config()
+
 SECRET_KEY = config.get('DJANGO_SECRET_KEY')
-# DEBUG = os.environ.get('ENV') == 'DEV'
-DEBUG = True
+
+DEBUG = config.is_dev
+
 # ALLOWED_HOSTS = [os.environ.get('HOST_NAME'), os.environ.get('SERVER_IP')]
 #
 # ADMINS = [

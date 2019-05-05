@@ -10,6 +10,7 @@ def start(service, conf=None):
         _starters = config.config_module.STARTERS
     else:
         _starters = config.default_config_module.STARTERS
+    config.validate(raise_error=True)
     try:
         starter = _starters[service]
     except KeyError:

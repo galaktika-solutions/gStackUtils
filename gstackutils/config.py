@@ -8,7 +8,7 @@ import re
 import click
 
 from .helpers import path_check, ask
-from .fields import ConfigField, SecretConfigField
+from .fields import ConfigField, SecretConfigField, EnvConfigField
 from .exceptions import (
     DefaultUsedException,
     ConfigMissingError,
@@ -109,7 +109,16 @@ class Config:
             return getattr(self.default_config_module, name)
         return default
 
-    def inspect(self):
+    def validate(self, raise_error=False):
+        for field_name, field_instance, section_instance in self.fields:
+            field_instance.get(root=True, validate=True)
+        validate_func = self.env("validate", lambda x: None)
+        result = validate_func(self)
+        if raise_error and result:
+            raise ValidationError("Validation error occured, please check `gstack inspect`.")
+        return result
+
+    def inspect(self, delete_stale=False):
         if not self.root_mode:
             raise PermissionDenied("This operation is allowed in root mode only.")
         info = {}
@@ -137,7 +146,7 @@ class Config:
 
         # output the result
         for k, v in info.items():
-            click.secho(k, fg="yellow")
+            click.secho(k, fg="yellow", bold=True)
             for f in v:
                 name = f[0]
                 symbol, color = FLAGS[self.theme][f[1]]
@@ -146,44 +155,48 @@ class Config:
                 value = f[2]
                 click.echo(f"    {name:>{max_name}} {flag} {value}")
 
+        validation_errors = self.validate()
+        if self.validate():
+            click.echo()
+            for ve in validation_errors:
+                click.secho(ve, fg="red", bold=True)
+
+        self.stale_list(
+            self.env_file_path, EnvConfigField, SecretConfigField, "environment", delete_stale
+        )
+        self.stale_list(
+            self.secret_file_path, SecretConfigField, EnvConfigField, "secret", delete_stale
+        )
+
+    def stale_list(self, filepath, klass, otherklass, name, delete_stale):
         regex = r"([^#^\s^=]+)="
-        obsolete = []
-        with open(self.env_file_path, "r") as f:
+        stale = []
+        with open(filepath, "r") as f:
             for l in f.readlines():
                 m = re.match(regex, l)
                 if m:
                     confname = m.group(1)
                     try:
                         f = self.fieldbyname(confname)
-                        if isinstance(f, SecretConfigField):
-                            obsolete.append(confname)
+                        if isinstance(f, otherklass):
+                            stale.append(confname)
                     except KeyError:
-                        obsolete.append(confname)
-        if obsolete:
-            click.echo()
-            click.echo("Obsolete environment config:")
-            for n in obsolete:
-                click.secho(f"    {n}", fg="red")
+                        stale.append(confname)
 
-        obsolete = []
-        with open(self.secret_file_path, "r") as f:
-            for l in f.readlines():
-                m = re.match(regex, l)
-                if m:
-                    confname = m.group(1)
-                    try:
-                        f = self.fieldbyname(confname)
-                        if not isinstance(f, SecretConfigField):
-                            obsolete.append(confname)
-                    except KeyError:
-                        obsolete.append(confname)
-        if obsolete:
-            click.echo()
-            click.echo("Obsolete secret config:")
-            for n in obsolete:
-                click.secho(f"    {n}", fg="red")
+        if not stale:
+            return
 
-    # def _obsolate(self, path):
+        if delete_stale:
+            for n in stale:
+                f = klass()
+                f._setup_field(self, n)
+                f.set_root(None)
+        else:
+            click.echo()
+            click.echo(f"Stale {name} config:")
+            for n in stale:
+                click.secho(f"    {n}", fg="red", bold=True)
+
     def fieldbyname(self, name):
         try:
             field, _ = self.field_map[name]
@@ -233,8 +246,9 @@ def conf():
 
 
 @conf.command(name="inspect")
-def inspect_cli():
-    Config().inspect()
+@click.option("--delete-stale", "-d", is_flag=True)
+def inspect_cli(delete_stale):
+    Config().inspect(delete_stale)
 
 
 @conf.command(name="set")

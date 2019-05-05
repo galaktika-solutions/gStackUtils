@@ -17,6 +17,13 @@ class DJANGO(Section):
     DJANGO_SECRET_KEY = SecretString(min_length=64, services={"django": ["django"]})
 
 
+# def validate(conf):
+#     ret = []
+#     if not conf.get("UWSGI") and not conf.is_dev:
+#         ret.append("UWSGI must be set to True in production.")
+#     return ret
+
+
 def pg_init(conf):
     postgres_pass = pg_pass("postgres", conf.get("DB_PASSWORD_POSTGRES"))
     django_pass = pg_pass("django", conf.get("DB_PASSWORD_DJANGO"))

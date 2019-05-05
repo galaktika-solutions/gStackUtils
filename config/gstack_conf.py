@@ -1,6 +1,3 @@
-import psycopg2
-# import click
-
 from gstackutils.config import Section
 from gstackutils.helpers import pg_pass
 from gstackutils.fields import (
@@ -14,23 +11,10 @@ class PYPI_CREDENTIALS(Section):
     PYPI_PASSWORD = SecretString(min_length=8)
 
 
-class POSTGRES(Section):
-    DB_PASSWORD_POSTGRES = SecretString(min_length=8)
-    DB_PASSWORD_DJANGO = SecretString(min_length=8, services={
-        "django": ["django"],
-    })
-    DB_PASSWORD_EXPLORER = SecretString(min_length=8, services={
-        "django": ["django"],
-    })
+from gstackutils.default_gstack_conf import POSTGRES, DJANGO  # noqa
 
 
-class DJANGO(Section):
-    DJANGO_SECRET_KEY = SecretString(min_length=64, services={
-        "django": ["django"],
-    })
-
-
-class JustForFun(Section):
+class TESTING(Section):
     BOOL = EnvBool(default=False)
     SECRETSTRING = SecretString(min_length=8)
     ENVFILE = EnvFile(min_size=50)
@@ -90,18 +74,3 @@ def pg_init(conf):
                    "GRANT SELECT ON TABLES TO explorer",
         },
     ])
-
-
-def healthcheck(conf):
-    dbname = "django"
-    user = "django"
-    password = conf.get("DB_PASSWORD_DJANGO")
-    host = "postgres"
-    psycopg2.connect(dbname=dbname, user=user, password=password, host=host)
-
-
-# @click.command(name="backup")
-# @click.option("--db", "-d", is_flag=True)
-# @click.option("--files", "-f", is_flag=True)
-# def backup_cli(db, files):
-#     print("doing backup...")
