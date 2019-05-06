@@ -7,6 +7,7 @@ from gstackutils.fields import (
 
 
 class PYPI_CREDENTIALS(Section):
+    """Credentials for https://pypi.org/"""
     PYPI_USERNAME = EnvString()
     PYPI_PASSWORD = SecretString(min_length=8)
 
@@ -15,8 +16,10 @@ from gstackutils.default_gstack_conf import POSTGRES, DJANGO  # noqa
 
 
 class TESTING(Section):
+    """Definitions for testing purposes only."""
+
     BOOL = EnvBool(default=False)
-    SECRETSTRING = SecretString(min_length=8)
+    SECRETSTRING = SecretString(min_length=8, help_text="Some secret long enough.")
     ENVFILE = EnvFile(min_size=50)
     SECRETFILE = SecretFile(max_size=100)
     PRIVATEKEY = SSLPrivateKey()

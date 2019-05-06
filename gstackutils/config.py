@@ -109,19 +109,40 @@ class Config:
             return getattr(self.default_config_module, name)
         return default
 
-    def validate(self, raise_error=False):
-        for field_name, field_instance, section_instance in self.fields:
-            field_instance.get(root=True, validate=True)
+    def validate(self):
         validate_func = self.env("validate", lambda x: None)
-        result = validate_func(self)
-        if raise_error and result:
-            raise ValidationError("Validation error occured, please check `gstack inspect`.")
-        return result
+        return validate_func(self)
+
+    def inspect_config(self, name):
+        if name not in self.field_map:
+            raise KeyError(f"No such config: {name}")
+        fi, si = self.field_map[name]
+        if si.__class__.__doc__:
+            click.echo(f"In section {si.__class__.__name__}: {si.__class__.__doc__.strip()}")
+        else:
+            click.echo(f"In section {si.__class__.__name__}")
+
+        if fi.help_text:
+            click.echo(f"{name}: {fi.help_text}")
+
+        try:
+            value = fi.get(root=True, default_exception=True, validate=True)
+        except DefaultUsedException:
+            value = fi.default
+            click.echo(f"value: {fi.to_human_readable(value)} (uses default)")
+        except ConfigMissingError:
+            click.secho("Not set.", fg="red", bold=True)
+        except ValidationError as e:
+            for error in e.args[0]:
+                click.secho(error, fg="red", bold=True)
+        else:
+            click.echo(f"value: {fi.to_human_readable(value)}")
 
     def inspect(self, delete_stale=False):
         if not self.root_mode:
             raise PermissionDenied("This operation is allowed in root mode only.")
         info = {}
+        valid = True
         for field_name, field_instance, section_instance in self.fields:
             try:
                 value = field_instance.get(root=True, default_exception=True, validate=True)
@@ -137,7 +158,10 @@ class Config:
                 flag = "INV"
             if flag in ("OK", "DEF"):
                 value = field_instance.to_human_readable(value)
-            section_list = info.setdefault(section_instance.__class__.__name__, [])
+            else:
+                valid = False
+            # section_list = info.setdefault(section_instance.__class__.__name__, [])
+            section_list = info.setdefault(section_instance, [])
             section_list.append((field_name, flag, value))
 
         # find the max length of config names
@@ -146,7 +170,12 @@ class Config:
 
         # output the result
         for k, v in info.items():
-            click.secho(k, fg="yellow", bold=True)
+            click.secho(k.__class__.__name__, fg="yellow", bold=True, nl=False)
+            if k.__class__.__doc__:
+                click.echo(f" ({k.__class__.__doc__.strip()})")
+            else:
+                click.echo()
+            click.echo()
             for f in v:
                 name = f[0]
                 symbol, color = FLAGS[self.theme][f[1]]
@@ -154,12 +183,20 @@ class Config:
                 # flag = symbol
                 value = f[2]
                 click.echo(f"    {name:>{max_name}} {flag} {value}")
-
-        validation_errors = self.validate()
-        if self.validate():
             click.echo()
-            for ve in validation_errors:
-                click.secho(ve, fg="red", bold=True)
+
+        click.echo("Cross validation")
+        click.echo()
+        if valid:
+            validation_errors = self.validate()
+            if validation_errors:
+                for ve in validation_errors:
+                    click.secho(f"    {ve}", fg="red", bold=True)
+            else:
+                click.secho(f"    OK", fg="green", bold=True)
+        else:
+            click.secho(f"    Did not validate due to value errors.", fg="yellow", bold=True)
+        click.echo()
 
         self.stale_list(
             self.env_file_path, EnvConfigField, SecretConfigField, "environment", delete_stale
@@ -192,10 +229,11 @@ class Config:
                 f._setup_field(self, n)
                 f.set_root(None)
         else:
-            click.echo()
             click.echo(f"Stale {name} config:")
+            click.echo()
             for n in stale:
                 click.secho(f"    {n}", fg="red", bold=True)
+            click.echo()
 
     def fieldbyname(self, name):
         try:
@@ -229,10 +267,7 @@ class Config:
 
     def prepare(self, service):
         for name, [field, _] in self.field_map.items():
-            try:
-                field.prepare(service=service)
-            except Exception as e:
-                raise e.__class__(f"{name}: {e}")
+            field.prepare(service)
 
 
 class Section:
@@ -246,9 +281,13 @@ def conf():
 
 
 @conf.command(name="inspect")
+@click.argument("name", required=False)
 @click.option("--delete-stale", "-d", is_flag=True)
-def inspect_cli(delete_stale):
-    Config().inspect(delete_stale)
+def inspect_cli(name, delete_stale):
+    if name:
+        Config().inspect_config(name)
+    else:
+        Config().inspect(delete_stale)
 
 
 @conf.command(name="set")
@@ -334,7 +373,7 @@ def delete(name):
         raise click.ClickException(f"No such config: {name}")
 
 
-@conf.command()
-@click.argument("service")
-def prepare(service):
-    Config().prepare(service)
+# @conf.command()
+# @click.argument("service")
+# def prepare(service):
+#     Config().prepare(service)

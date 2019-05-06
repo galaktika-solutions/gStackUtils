@@ -15,7 +15,7 @@ GSTACK_PG_CONF_ORIG = "postgresql.conf"
 
 class First(Section):
     ANIMAL = EnvString(default="duck")
-    SAIS = SecretString(default="quack", min_length=3, services={"test": []})
+    SAIS = SecretString(default="quack", min_length=3, services={"test": {}})
     LIKES = EnvString(min_length=5)
     COLOR = EnvString()
     DANGEROUS = EnvBool(default=False)

@@ -44,9 +44,9 @@ class ConfigField:
             value = self.get_app()
         if value is None:
             if isinstance(self.default, NotSet):
-                raise ConfigMissingError()
+                raise ConfigMissingError(f"Config missing: {self.name}")
             if default_exception:
-                raise DefaultUsedException()
+                raise DefaultUsedException(f"Default used for config: {self.name}")
             return self.default
         if validate:
             self.validate(value)
@@ -64,7 +64,7 @@ class ConfigField:
             try:
                 validator.validate(self.config, value)
             except ValidationError as e:
-                errors.append(e)
+                errors.append(e.args[0])
         if errors:
             raise ValidationError(errors)
 
@@ -119,13 +119,9 @@ class ConfigField:
         """Converts from bytes"""
         return b.decode()
 
-    def prepare(self, service=None):
-        try:
-            value = self.get(root=True, default_exception=True)
-        except DefaultUsedException:
-            pass
-        else:
-            self.validate(value)  # Is it needed here???
+    def prepare(self, service):
+        if service in self.services:
+            value = self.get(root=True, validate=True)
             self.set_app(value, service)
 
 

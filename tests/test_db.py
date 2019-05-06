@@ -15,7 +15,8 @@ class TestDB(ConfTestCase):
         env.update({"PYTHONPATH": "."})
         dbprocess = subprocess.Popen(
             ["gstack", "start", "postgres"],
-            env=env, stderr=subprocess.DEVNULL
+            env=env,
+            stderr=subprocess.DEVNULL,
         )
         wait_for_db()
         dbprocess.terminate()
