@@ -1,9 +1,20 @@
 from gstackutils.config import Section
 from gstackutils.helpers import pg_pass
 from gstackutils.fields import (
-    EnvString, SecretString, EnvBool, EnvFile, SecretFile,
-    SSLPrivateKey, SSLCertificate
+    EnvString,
+    SecretString,
+    EnvBool,
+    EnvFile,
+    SecretFile,
+    SSLPrivateKey,
+    SSLCertificate,
+    EnvStringList,
+    EnvEmail,
+    EnvEmailList,
+    EnvInteger,
+    SecretInteger,
 )
+from gstackutils.validators import IPValidator, HostNameValidator
 
 
 class PYPI_CREDENTIALS(Section):
@@ -17,14 +28,21 @@ from gstackutils.default_gstack_conf import POSTGRES, DJANGO  # noqa
 
 class TESTING(Section):
     """Definitions for testing purposes only."""
-
-    BOOL = EnvBool(default=False)
+    ENVSTRING = EnvString()
     SECRETSTRING = SecretString(min_length=8, help_text="Some secret long enough.")
-    ENVFILE = EnvFile(min_size=50)
-    SECRETFILE = SecretFile(max_size=100)
+    BOOL = EnvBool(default=False)
+    ENVFILE = EnvFile(min_length=50)
+    SECRETFILE = SecretFile(max_length=100)
     PRIVATEKEY = SSLPrivateKey()
-    CACERT = SSLCertificate(default=b"", validate=False)
-    CERTIFICATE = SSLCertificate(getCA=lambda conf: conf.get("CACERT"))
+    HOSTNAME = EnvString(validators=[HostNameValidator()])
+    CERTIFICATE = SSLCertificate(getname=lambda conf: conf.get("HOSTNAME"))
+    ENVSTRINGLIST = EnvStringList(separator="|", default=["a", "b"])
+    ENVEMAIL = EnvEmail()
+    ENVEMAILLIST = EnvEmailList()
+    ENVINTEGER = EnvInteger()
+    SECRETINTEGER = SecretInteger(default=0, max_value=-1)
+    IP = EnvString(validators=[IPValidator(range=True)])
+    # CACERT = SSLCertificate(default=b"", validate=False)
 
 
 def pg_init(conf):

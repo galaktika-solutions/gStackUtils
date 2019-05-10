@@ -1,146 +1,150 @@
-import unittest
 import os
 
+from . import CleanTestCase
+from gstackutils.fields import (
+    EnvString,
+    SecretString,
+    EnvBool,
+    EnvFile,
+)
+from gstackutils.exceptions import (
+    ConfigMissingError,
+    ValidationError,
+    DefaultUsedException,
+    ImproperlyConfigured,
+    ServiceNotFound,
+)
 from gstackutils.config import Config
-from gstackutils.fields import EnvString  # , SecretString, Config
-from gstackutils.exceptions import ConfigMissingError  # , ValidationError
-# from gstackutils import ImproperlyConfigured
 
 
-class ConfTestCase(unittest.TestCase):
-    def setUp(self):
-        os.chdir("tests/fixtures")
-        os.makedirs(".git", exist_ok=True)
-        os.environ["GSTACK_CONFIG_MODULE"] = "gstack_conf"
+class TestConfFields(CleanTestCase):
+    def config(self):
+        return Config(config_module="empty_conf", use_default_config_module=False)
 
-    def tearDown(self):
-        if os.path.isfile(".env"):
-            os.remove(".env")
-        if os.path.isfile(".secret.env"):
-            os.remove(".secret.env")
-        if os.path.isdir("secrets"):
-            for f in os.listdir("secrets"):
-                os.remove(os.path.join("secrets", f))
-            os.rmdir("secrets")
-        del os.environ["GSTACK_CONFIG_MODULE"]
-        os.rmdir(".git")
-        os.chdir("/src")
+    def test_envstring(self):
+        conffield = EnvString(min_length=2, max_length=5)
+        # conffield = EnvString()
+        conffield._setup_field(self.config(), "X")
 
+        # missing
+        with self.assertRaises(ConfigMissingError):
+            conffield.get(root=True)
+        with self.assertRaises(ConfigMissingError):
+            conffield.get(root=False)
 
-class TestConf(ConfTestCase):
-    def test_main_conf(self):
-        conf = Config()
-        self.assertTrue(conf.is_dev)
+        # present
+        os.environ["X"] = "foo"
+        self.assertEqual(conffield.get(root=False), "foo")
+        del os.environ["X"]
 
-    def test_nonexistent(self):
+        # set and get
+        conffield.set("baz")
+        self.assertEqual(conffield.get(root=True), "baz")
+        conffield.set(None)
+
+        # validation
+        with self.assertRaises(ValidationError):
+            conffield.set("b")
+        with self.assertRaises(ValidationError):
+            conffield.set("bazzzz")
+
+        os.environ["X"] = "foooooooo"
+        with self.assertRaises(ValidationError):
+            conffield.get(root=False, validate=True)
+        del os.environ["X"]
+
+        # default
+        conffield = EnvString(default="okay")
+        conffield._setup_field(self.config(), "X")
+        self.assertEqual(conffield.get(root=True), "okay")
+        with self.assertRaises(DefaultUsedException):
+            conffield.get(root=True, default_exception=True)
+
+    def test_secretstring(self):
+        conffield = SecretString(min_length=2, max_length=10)
+        conffield._setup_field(self.config(), "X")
+
+        conffield.set("secret")
+        with open(".secret.env", "r") as f:
+            self.assertEqual(f.readlines()[0], "X=c2VjcmV0\n")
+        self.assertEqual(conffield.get(root=True), "secret")
+
+    def test_no_file(self):
         conffield = EnvString()
-        conffield._setup_field(Config(), "X")
+        conffield._setup_field(self.config(), "x")
+        os.remove(".env")
         with self.assertRaises(ConfigMissingError):
             conffield.get(root=True)
 
-    def test_simple_set_get(self):
-        conf = Config()
-        conf.set("ANIMAL", "dog")
-        # peek in the file
-        with open(".env", "r") as f:
-            self.assertEqual(f.read(), "ANIMAL=dog\n")
-        self.assertEqual(conf.get("ANIMAL"), "dog")
+    def test_multiple_lines(self):
+        conffield1 = EnvString()
+        conffield2 = EnvString()
+        conffield3 = EnvString()
+        conffield1._setup_field(self.config(), "one")
+        conffield2._setup_field(self.config(), "two")
+        conffield3._setup_field(self.config(), "three")
 
-    def test_default_used(self):
-        conf = Config()
-        self.assertEqual(conf.get("ANIMAL"), "duck")
+        conffield1.set("1111111111")
+        conffield2.set("2222222222")
+        conffield3.set("3333333333")
+        self.assertEqual(conffield2.get(root=True), "2222222222")
+        conffield2.set(None)
+        with self.assertRaises(ConfigMissingError):
+            conffield2.get(root=True)
+        conffield1.set("xxx")
+        self.assertEqual(conffield1.get(root=True), "xxx")
 
-    def test_delete(self):
-        conf = Config()
-        conf.set("ANIMAL", "dog")
-        self.assertEqual(conf.get("ANIMAL"), "dog")
-        conf.set("ANIMAL", None)
-        self.assertEqual(conf.get("ANIMAL"), "duck")
+    def test_human_readable(self):
+        conffield = EnvString()
+        conffield._setup_field(self.config(), "x")
+        self.assertEqual(conffield.to_human_readable("áíő"), "áíő")
+
+    def test_prepare_secret(self):
+        for conffield, expected in [
+            (SecretString(services=["test"]), (0, 0, 0o400)),
+            (SecretString(services={"test": [1000]}), (1000, 1000, 0o400)),
+            (SecretString(services={"test": [1000, 2000]}), (1000, 2000, 0o400)),
+            (SecretString(services={"test": [1000, 2000, 0o640]}), (1000, 2000, 0o640)),
+            (SecretString(services={"test": {}}), (0, 0, 0o400)),
+            (SecretString(services={"test": {"uid": 1000}}), (1000, 1000, 0o400)),
+            (SecretString(services={"test": {"gid": 1000}}), (0, 1000, 0o400)),
+        ]:
+            conffield._setup_field(self.config(), "X")
+            conffield.set("xxx")
+            conffield.prepare("test")
+            self.assertEqual(conffield.get(root=False), "xxx")
+            stat = os.stat("secrets/X")
+            self.assertEqual(stat.st_uid, expected[0])
+            self.assertEqual(stat.st_gid, expected[1])
+            self.assertEqual(stat.st_mode & 0o777, expected[2])
+        with self.assertRaises(ImproperlyConfigured):
+            SecretString(services=None)
+        with self.assertRaises(ImproperlyConfigured):
+            SecretString(services={"test": None})
+
+        conffield = SecretString()
+        conffield._setup_field(self.config(), "Y")
+        with self.assertRaises(ConfigMissingError):
+            print(conffield.get(root=False))
+        with self.assertRaises(ServiceNotFound):
+            conffield.set_app("yyy", "test")
 
     def test_bool(self):
-        conf = Config()
-        conf.set("DANGEROUS", True)
-        self.assertEqual(conf.get("DANGEROUS"), True)
-        os.environ["DANGEROUS"] = "True"
-        self.assertEqual(conf.get("DANGEROUS", root=False), True)
+        conffield = EnvBool()
+        conffield._setup_field(self.config(), "one")
+        conffield.set(True)
+        self.assertEqual(conffield.get(root=True), True)
+        conffield.set(False)
+        self.assertEqual(conffield.get(root=True), False)
 
-#     def test_validation(self):
-#         conffield = EnvString(min_length=5, max_length=9)
-#         conffield._setup_field(self.config, "X")
-#         with self.assertRaises(ValidationError):
-#             conffield.set("x")
-#         with self.assertRaises(ValidationError):
-#             conffield.set("1234567890")
-#         with self.assertRaises(ValidationError):
-#             conffield.set(0)
-#
-#
-# class TestSecretString(CleanConfTestCase):
-#     def test_prepare(self):
-#         conffield = SecretString(services={"s": (1000,)})
-#         conffield._setup_field(self.config, "X")
-#         conffield.set("x")
-#         conffield.prepare(service="s")
-#         p = os.path.join(self.config.secret_dir, "X")
-#         with open(p, "r") as f:
-#             self.assertEqual(f.read(), "x")
-#         stat = os.stat(p)
-#         self.assertEqual(stat.st_uid, 1000)
-#         self.assertEqual(stat.st_gid, 1000)
-#
-#
-# class TestConfig(unittest.TestCase):
-#     def setUp(self):
-#         os.chdir("tests/fixtures")
-#         os.makedirs(".git", exist_ok=True)
-#
-#     def tearDown(self):
-#         if os.path.isdir(".git"):
-#             os.rmdir(".git")
-#         if os.path.isfile(".env"):
-#             os.remove(".env")
-#         if os.path.isfile(".secret.env"):
-#             os.remove(".secret.env")
-#         if os.path.isdir(".files"):
-#             for f in os.listdir(".files"):
-#                 os.remove(os.path.join(".files", f))
-#             os.rmdir(".files")
-#         os.chdir("../..")
-#
-#     def test_wrong_prod(self):
-#         os.rmdir(".git")
-#         with self.assertRaises(ImproperlyConfigured):
-#             Config()
-#
-#     def test_init(self):
-#         conf = Config(
-#             config_module="gstack_conf",
-#             env_file_path=".env",
-#             secret_file_path=".secret.env",
-#             root_mode=True
-#         )
-#         # print(conf.fields)
-#         self.assertEqual(conf.env_file_path, ".env")
-#
-#     def test_prepare(self):
-#         conf = Config(
-#             config_module="gstack_conf",
-#             env_file_path=".env",
-#             secret_file_path=".secret.env",
-#         )
-#         conf.set("SAIS", "o", no_validate=True)
-#         with self.assertRaises(ValidationError):
-#             conf.prepare('test')
-#
-#         self.assertEqual(conf.get("ANIMAL"), "duck")
-#
-#         conf.set("SAIS", "something", no_validate=True)
-#         conf.prepare("test")
-#
-#         conf = Config(
-#             config_module="gstack_conf",
-#             env_file_path=".env",
-#             secret_file_path=".secret.env",
-#             root_mode=False,
-#         )
-#         self.assertEqual(conf.get("SAIS"), "something")
+    def test_file(self):
+        conffield = EnvFile()
+        conffield._setup_field(self.config(), "one")
+        conffield.set(b"abc")
+        self.assertEqual(conffield.get(root=True), b"abc")
+        self.assertEqual(
+            conffield.to_human_readable(b"abc"),
+            "File of size 3 bytes"
+        )
+        with open(".env", "r") as f:
+            self.assertEqual(f.read(), "one=YWJj\n")

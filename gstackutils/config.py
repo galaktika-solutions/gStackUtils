@@ -7,8 +7,15 @@ import re
 
 import click
 
-from .helpers import path_check, ask
-from .fields import ConfigField, SecretConfigField, EnvConfigField
+from .helpers import (
+    path_check,
+    ask,
+)
+from .fields import (
+    ConfigField,
+    SecretConfigField,
+    EnvConfigField,
+)
 from .exceptions import (
     DefaultUsedException,
     ConfigMissingError,
@@ -38,12 +45,12 @@ class Config:
     def __init__(
         self,
         config_module=None,
+        use_default_config_module=True,
         root_mode=None,
     ):
         stat = os.stat(".")
         self.pu, self.pg = stat.st_uid, stat.st_gid  # project user & group
         self.is_dev = os.path.isdir(".git")
-        # self.root_mode = (os.getuid() == 0) if root_mode is None else root_mode
         self.root_mode = os.getuid() == 0
         if root_mode and not self.root_mode:
             raise PermissionDenied(f"Can not set root mode, uid: {os.getuid()}")
@@ -59,7 +66,10 @@ class Config:
             "gstackutils.default_gstack_conf"
         )
         self.config_module = importlib.import_module(cm)
-        self.default_config_module = importlib.import_module("gstackutils.default_gstack_conf")
+        if use_default_config_module:
+            self.default_config_module = importlib.import_module("gstackutils.default_gstack_conf")
+        else:
+            self.default_config_module = None
 
         self.env_file_path = self.env("GSTACK_ENV_FILE", "/host/.env")
         self.secret_file_path = self.env("GSTACK_SECRET_FILE", "/host/.secret.env")
@@ -69,8 +79,6 @@ class Config:
         path_check("f", self.env_file_path, self.pu, self.pg, 0o133, self.root_mode)
         path_check("f", self.secret_file_path, self.pu, self.pg, 0o177, self.root_mode)
         path_check("d", self.secret_dir, self.pu, self.pg, 0o22, self.root_mode)
-
-        # mod = importlib.import_module(self.config_module)
 
         fields = []
         self.field_names = set()
@@ -100,18 +108,18 @@ class Config:
 
         self.fields = fields
         self.field_map = dict([(fn, (fi, si)) for fn, fi, si in self.fields])
-        # instance._check_config()
 
     def env(self, name, default):
         if hasattr(self.config_module, name):
             return getattr(self.config_module, name)
-        if hasattr(self.default_config_module, name):
+        if self.default_config_module and hasattr(self.default_config_module, name):
             return getattr(self.default_config_module, name)
         return default
 
-    def validate(self):
-        validate_func = self.env("validate", lambda x: None)
-        return validate_func(self)
+#     def validate(self):
+#         Do NOT use default for validation
+#         validate_func = self.env("validate", lambda x: None)
+#         return validate_func(self)
 
     def inspect_config(self, name):
         if name not in self.field_map:
@@ -142,7 +150,7 @@ class Config:
         if not self.root_mode:
             raise PermissionDenied("This operation is allowed in root mode only.")
         info = {}
-        valid = True
+        # valid = True
         for field_name, field_instance, section_instance in self.fields:
             try:
                 value = field_instance.get(root=True, default_exception=True, validate=True)
@@ -159,14 +167,13 @@ class Config:
             if flag in ("OK", "DEF"):
                 value = field_instance.to_human_readable(value)
             else:
-                valid = False
-            # section_list = info.setdefault(section_instance.__class__.__name__, [])
+                # valid = False
+                pass
             section_list = info.setdefault(section_instance, [])
             section_list.append((field_name, flag, value))
 
         # find the max length of config names
         max_name = max([len(x) for x in self.field_names])
-        # max_val = max([len(x[2]) for v in info.values() for x in v])
 
         # output the result
         for k, v in info.items():
@@ -180,23 +187,22 @@ class Config:
                 name = f[0]
                 symbol, color = FLAGS[self.theme][f[1]]
                 flag = click.style(symbol, fg=color)
-                # flag = symbol
                 value = f[2]
                 click.echo(f"    {name:>{max_name}} {flag} {value}")
             click.echo()
 
-        click.echo("Cross validation")
-        click.echo()
-        if valid:
-            validation_errors = self.validate()
-            if validation_errors:
-                for ve in validation_errors:
-                    click.secho(f"    {ve}", fg="red", bold=True)
-            else:
-                click.secho(f"    OK", fg="green", bold=True)
-        else:
-            click.secho(f"    Did not validate due to value errors.", fg="yellow", bold=True)
-        click.echo()
+        # click.echo("Cross validation")
+        # click.echo()
+        # if valid:
+        #     validation_errors = self.validate()
+        #     if validation_errors:
+        #         for ve in validation_errors:
+        #             click.secho(f"    {ve}", fg="red", bold=True)
+        #     else:
+        #         click.secho(f"    OK", fg="green", bold=True)
+        # else:
+        #     click.secho(f"    Did not validate due to value errors.", fg="yellow", bold=True)
+        # click.echo()
 
         self.stale_list(
             self.env_file_path, EnvConfigField, SecretConfigField, "environment", delete_stale
@@ -253,7 +259,7 @@ class Config:
                 return default
             raise KeyError(f"No such config: {name}")
         if to_stdout:
-            return field.to_stdout(field.get(root=root))
+            return field.to_bytes(field.get(root=root))
         return field.get(root=root)
 
     def set(self, name, value, no_validate=False, from_stdin=False):
@@ -262,7 +268,7 @@ class Config:
         except KeyError:
             raise KeyError(f"No such config: {name}")
         if from_stdin:
-            value = field.from_stdin(value)
+            value = field.to_python(value)
         field.set(value, no_validate=no_validate)
 
     def prepare(self, service):
@@ -301,7 +307,7 @@ def set_cli(name, value, no_validate, random, stdin, file):
     numinputoptions = len([o for o in [random, stdin, file] if o])
     if numinputoptions > 1:
         raise click.UsageError(
-            "Only on input method can be used: random, stdin or file.",
+            "Only one input method can be used: random, stdin or file.",
         )
     config = Config()
     if not name:

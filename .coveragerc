@@ -5,3 +5,8 @@ source = gstackutils
 
 [html]
 directory = coverage_report/
+
+[report]
+# Regexes
+exclude_lines =
+    raise NotImplementedError

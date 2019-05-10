@@ -2,13 +2,19 @@ import re
 import os
 import base64
 import subprocess
+from email.utils import parseaddr
 
 from .exceptions import (
-    ConfigMissingError, DefaultUsedException, ValidationError, ImproperlyConfigured
+    ConfigMissingError, DefaultUsedException, ValidationError,
+    ImproperlyConfigured, ServiceNotFound
 )
 from .validators import (
-    MinLengthValidator, MaxLengthValidator, TypeValidator, PrivateKeyValidator,
-    CertificateValidator
+    MinMaxLengthValidator,
+    TypeValidator,
+    PrivateKeyValidator,
+    CertificateValidator,
+    EmailValidator,
+    MinMaxValueValidator
 )
 from .helpers import uid as _uid, gid as _gid
 
@@ -19,30 +25,29 @@ class NotSet:
 
 class ConfigField:
     ENV_REGEX = re.compile(r"^\s*([^#].*?)=(.*)$")
+    b64 = False
+    services = []
+    default_validators = []
     hide_input = False
-    services = {}
 
     def __init__(self, default=NotSet(), help_text=None, validators=[]):
         self.default = default
         self.help_text = help_text
         self.validators = validators
         self.name = None
+        self.config = None
 
     def _setup_field(self, config, name):
-        """Must be called befor the field can be used."""
         self.name = name
         self.config = config
 
     def get(self, root=False, default_exception=False, validate=False):
-        """Returns value depending on the field typeself.
-
-        No validation occurs except when `validate` is set to `True`.
-        """
-        if root:
-            value = self.get_root()
-        else:
-            value = self.get_app()
-        if value is None:
+        try:
+            if root:
+                value = self.get_root()
+            else:
+                value = self.get_app()
+        except ConfigMissingError:
             if isinstance(self.default, NotSet):
                 raise ConfigMissingError(f"Config missing: {self.name}")
             if default_exception:
@@ -53,37 +58,48 @@ class ConfigField:
         return value
 
     def set(self, value, no_validate=False):
-        """Validation is done based on the value of `no_validate`."""
         if not no_validate and value is not None:
             self.validate(value)
         self.set_root(value)
 
     def validate(self, value):
         errors = []
-        for validator in self.validators:
+        for validator in self.default_validators + self.validators:
             try:
-                validator.validate(self.config, value)
+                validator(self, value)
             except ValidationError as e:
                 errors.append(e.args[0])
         if errors:
             raise ValidationError(errors)
 
-    def _get_filepath(self):
-        raise NotImplementedError()
-
     def get_root(self):
-        """Returns value from the storage file (or None)"""
-        with open(self._get_filepath(), "r") as f:
-            for l in f.readlines():
-                m = self.ENV_REGEX.match(l)
-                if m and m.group(1) == self.name:
-                    return m.group(2)
-        return None
+        try:
+            with open(self.get_filepath(), "r") as f:
+                for l in f.readlines():
+                    m = self.ENV_REGEX.match(l)
+                    if m and m.group(1) == self.name:
+                        if self.b64:
+                            ret = base64.b64decode(m.group(2))
+                        else:
+                            ret = m.group(2).encode()
+                        return self.to_python(ret)
+        except (FileNotFoundError, PermissionError):
+            raise ConfigMissingError()
+        else:
+            raise ConfigMissingError()
 
     def set_root(self, value):
+        # if to_bytes could not be decoded cleanly, b64 should be set
+        if value is not None:
+            value = self.to_bytes(value)
+            if self.b64:
+                value = base64.b64encode(value)
+            value = value.decode()
+
         newlines = []
+        actualline = f"{self.name}={value}\n"
         done = False
-        with open(self._get_filepath(), "r") as f:
+        with open(self.get_filepath(), "r") as f:
             lines = f.readlines()
         for l in lines:
             if done:  # if we are done, just append remaining lines
@@ -93,16 +109,29 @@ class ConfigField:
             if m and m.group(1) == self.name:
                 done = True
                 if value is not None:  # if we delete, leave this line alone
-                    newlines.append(f"{self.name}={value}\n")
+                    newlines.append(actualline)
             else:
                 newlines.append(l)
         if not done and value is not None:
-            newlines.append(f"{self.name}={value}\n")
-        with open(self._get_filepath(), "w") as f:
+            newlines.append(actualline)
+        with open(self.get_filepath(), "w") as f:
             f.writelines(newlines)
 
+    def prepare(self, service):
+        if service in self.services:
+            value = self.get(root=True, validate=True)
+            self.set_app(value, service)
+
+    def get_filepath(self):
+        raise NotImplementedError()
+
+    def to_python(self, b):
+        raise NotImplementedError()
+
+    def to_bytes(self, value):
+        raise NotImplementedError()
+
     def get_app(self):
-        """Returns value as presented for the app (or None)"""
         raise NotImplementedError()
 
     def set_app(self, value, service=None):
@@ -111,45 +140,41 @@ class ConfigField:
     def to_human_readable(self, value):
         return str(value)
 
-    def to_stdout(self, value):
-        """Converts to meaningful bytes"""
-        return str(value).encode()
-
-    def from_stdin(self, b):
-        """Converts from bytes"""
-        return b.decode()
-
-    def prepare(self, service):
-        if service in self.services:
-            value = self.get(root=True, validate=True)
-            self.set_app(value, service)
-
 
 class EnvConfigField(ConfigField):
-    def _get_filepath(self):
+    def get_filepath(self):
         return self.config.env_file_path
 
     def get_app(self):
-        return os.environ.get(self.name)
+        s = os.environ.get(self.name)
+        if s is None:
+            raise ConfigMissingError()
+        return self.to_python(s.encode())
 
     def set_app(self, value, service=None):
-        # os.environ[self.name] = value
         pass
 
 
 class SecretConfigField(ConfigField):
+    b64 = True
     hide_input = True
 
-    def __init__(self, services={}, **kwargs):
+    def __init__(self, services=[], **kwargs):
+        if not isinstance(services, (list, tuple, dict)):
+            raise ImproperlyConfigured(
+                "The `services` parameter must be a tuple, a list or a dict"
+            )
+        if isinstance(services, (list, tuple)):
+            services = dict([(k, []) for k in services])
         self.services = {}
         for s, ugm in services.items():
             if isinstance(ugm, (tuple, list)):
                 if len(ugm) == 0:
-                    self.services[s] = {}
+                    self.services[s] = {"uid": 0, "gid": 0, "mode": 0o400}
                 elif len(ugm) == 1:
-                    self.services[s] = {"uid": ugm[0]}
+                    self.services[s] = {"uid": ugm[0], "gid": ugm[0], "mode": 0o400}
                 elif len(ugm) == 2:
-                    self.services[s] = {"uid": ugm[0], "gid": ugm[1]}
+                    self.services[s] = {"uid": ugm[0], "gid": ugm[1], "mode": 0o400}
                 else:
                     self.services[s] = {"uid": ugm[0], "gid": ugm[1], "mode": ugm[2]}
             elif isinstance(ugm, dict):
@@ -157,39 +182,38 @@ class SecretConfigField(ConfigField):
                 for k in ["uid", "gid", "mode"]:
                     if k in ugm:
                         p[k] = ugm[k]
+                u = p.setdefault("uid", 0)
+                p.setdefault("gid", u)
+                p.setdefault("mode", 0o400)
                 self.services[s] = p
             else:
                 raise ImproperlyConfigured(
-                    "The `services` parameter must be a tuple, a list or a dict"
+                    "A service item must be a tuple, a list or a dict"
                 )
         super().__init__(**kwargs)
 
-    def _get_filepath(self):
+    def get_filepath(self):
         return self.config.secret_file_path
-
-    def get_root(self):
-        value = super().get_root()
-        if value is not None:
-            return base64.b64decode(value).decode()
-
-    def set_root(self, value):
-        if value is not None:
-            value = base64.b64encode(value.encode()).decode()
-        super().set_root(value)
 
     def get_app(self):
         fn = os.path.join(self.config.secret_dir, self.name)
-        with open(fn, "r") as f:
-            return f.read()
+        try:
+            with open(fn, "rb") as f:
+                return self.to_python(f.read())
+        except (FileNotFoundError, PermissionError):
+            raise ConfigMissingError()
 
     def set_app(self, value, service=None):
-        s = self.services.get(service, {})
-        uid = _uid(s.get("uid", 0))
-        gid = _gid(s.get("gid", uid))
-        mode = s.get("mode", 0o400)
+        try:
+            s = self.services[service]
+        except KeyError:
+            raise ServiceNotFound(f"No such service: {service}")
+        uid = _uid(s["uid"])
+        gid = _gid(s["gid"])
+        mode = s["mode"]
         fn = os.path.join(self.config.secret_dir, self.name)
-        with open(fn, "w") as f:
-            f.write(value)
+        with open(fn, "wb") as f:
+            f.write(self.to_bytes(value))
         os.chown(fn, uid, gid)
         os.chmod(fn, mode)
 
@@ -198,14 +222,82 @@ class SecretConfigField(ConfigField):
 
 
 class StringMixin:
-    def __init__(self, min_length=0, max_length=None, **kwargs):
-        validators = kwargs.pop("validators", [])
-        validators.append(TypeValidator(str))
-        if min_length:
-            validators.append(MinLengthValidator(min_length))
-        if max_length:
-            validators.append(MaxLengthValidator(max_length))
-        super().__init__(validators=validators, **kwargs)
+    validate_type = str
+    default_validators = [MinMaxLengthValidator(), TypeValidator()]
+
+    def __init__(self, min_length=None, max_length=None, **kwargs):
+        self.min_length = min_length
+        self.max_length = max_length
+        super().__init__(**kwargs)
+
+    def to_python(self, b):
+        return b.decode()
+
+    def to_bytes(self, value):
+        return value.encode()
+
+
+class IntMixin:
+    validate_type = int
+    default_validators = [MinMaxValueValidator(), TypeValidator()]
+
+    def __init__(self, min_value=None, max_value=None, **kwargs):
+        self.min_value = min_value
+        self.max_value = max_value
+        super().__init__(**kwargs)
+
+    def to_python(self, b):
+        return int(b)
+
+    def to_bytes(self, value):
+        return str(value).encode()
+
+
+class FileMixin:
+    validate_type = bytes
+    default_validators = [MinMaxLengthValidator(), TypeValidator()]
+
+    def __init__(self, min_length=None, max_length=None, **kwargs):
+        self.min_length = min_length
+        self.max_length = max_length
+        self.b64 = True
+        super().__init__(**kwargs)
+
+    def to_python(self, b):
+        return b
+
+    def to_bytes(self, value):
+        return value
+
+    def to_human_readable(self, value):
+        return f"File of size {len(value)} bytes"
+
+
+class ListMixin:
+    def __init__(self, separator=b",", **kwargs):
+        self.separator = separator
+        if not isinstance(separator, bytes):
+            self.separator = separator.encode()
+        super().__init__(**kwargs)
+
+    def to_python(self, b):
+        return [super(ListMixin, self).to_python(x) for x in b.split(self.separator)]
+
+    def to_bytes(self, value):
+        return self.separator.join([super(ListMixin, self).to_bytes(x) for x in value])
+
+    def validate(self, value):
+        errors = []
+        for val in value:
+            try:
+                super().validate(val)
+            except ValidationError as ve:
+                errors += ve.args[0]
+        if errors:
+            raise ValidationError(errors)
+
+    def to_human_readable(self, value):
+        return str([super(ListMixin, self).to_human_readable(x) for x in value])
 
 
 class EnvString(StringMixin, EnvConfigField):
@@ -216,76 +308,27 @@ class SecretString(StringMixin, SecretConfigField):
     pass
 
 
+class EnvInteger(IntMixin, EnvConfigField):
+    pass
+
+
+class SecretInteger(IntMixin, SecretConfigField):
+    pass
+
+
 class EnvBool(EnvConfigField):
-    def __init__(self, **kwargs):
-        validators = kwargs.pop("validators", [])
-        validators.append(TypeValidator(bool))
-        super().__init__(validators=validators, **kwargs)
+    validate_type = bool
+    default_validators = [TypeValidator()]
 
-    def _from_str(self, s):
-        # print(f"_from_str {self.name}: {s}")
-        if s == "True":
+    def to_python(self, b):
+        if b == b"True":
             return True
-        elif s == "False":
+        elif b == b"False":
             return False
-        elif s is None:
-            return None
-        raise ValidationError("Invalid value.")
+        return None
 
-    def get_root(self):
-        return self._from_str(super().get_root())
-
-    def get_app(self):
-        return self._from_str(super().get_app())
-
-    def from_stdin(self, b):
-        return self._from_str(b.decode())
-
-
-class FileMixin:
-    def __init__(self, min_size=None, max_size=None, **kwargs):
-        validators = kwargs.pop("validators", [])
-        validators.append(TypeValidator(bytes))
-        if min_size:
-            validators.append(MinLengthValidator(min_size))
-        if max_size:
-            validators.append(MaxLengthValidator(max_size))
-        super().__init__(validators=validators, **kwargs)
-
-    def get_root(self):
-        value = super().get_root()
-        if value is not None:
-            return base64.b64decode(value)
-
-    def set_root(self, value):
-        if value is not None:
-            value = base64.b64encode(value).decode()
-        super().set_root(value)
-
-    def get_app(self):
-        fn = os.path.join(self.config.secret_dir, self.name)
-        with open(fn, "rb") as f:
-            return f.read()
-
-    def set_app(self, value, service=None):
-        s = self.services.get(service, {})
-        uid = _uid(s.get("uid", 0))
-        gid = _gid(s.get("gid", uid))
-        mode = s.get("mode", 0o400)
-        fn = os.path.join(self.config.secret_dir, self.name)
-        with open(fn, "wb") as f:
-            f.write(value)
-        os.chown(fn, uid, gid)
-        os.chmod(fn, mode)
-
-    def to_human_readable(self, value):
-        return f"File of size {len(value)} bytes"
-
-    def to_stdout(self, value):
-        return value
-
-    def from_stdin(self, b):
-        return b
+    def to_bytes(self, value):
+        return b"True" if value else b"False"
 
 
 class EnvFile(FileMixin, EnvConfigField):
@@ -296,25 +339,39 @@ class SecretFile(FileMixin, SecretConfigField):
     pass
 
 
+class EnvStringList(ListMixin, EnvString):
+    pass
+
+
+class EnvEmail(EnvString):
+    default_validators = [EmailValidator()]
+
+    def to_python(self, b):
+        return parseaddr(b.decode())
+
+    def to_bytes(self, value):
+        return f"{value[0]} <{value[1]}>".encode()
+
+
+class EnvEmailList(ListMixin, EnvEmail):
+    def to_human_readable(self, value):
+        return str(value)
+
+
 class SSLPrivateKey(SecretFile):
-    def __init__(self, **kwargs):
-        validators = kwargs.pop("validators", [])
-        validators.append(PrivateKeyValidator())
-        super().__init__(validators=validators, **kwargs)
+    default_validators = [MinMaxLengthValidator(), TypeValidator(), PrivateKeyValidator()]
 
     def to_human_readable(self, value):
         return f"SSL private key file of size {len(value)} bytes"
 
 
 class SSLCertificate(SecretFile):
-    def __init__(self, **kwargs):
-        getnamefor = kwargs.pop("getnamefor", None)
-        getCA = kwargs.pop("getCA", None)
-        validate = kwargs.pop("validate", True)
-        validators = kwargs.pop("validators", [])
-        if validate:
-            validators.append(CertificateValidator(getnamefor=getnamefor, getCA=getCA))
-        super().__init__(validators=validators, **kwargs)
+    default_validators = [MinMaxLengthValidator(), TypeValidator(), CertificateValidator()]
+
+    def __init__(self, getname=None, getca=None, **kwargs):
+        self.getname = getname
+        self.getca = getca
+        super().__init__(**kwargs)
 
     def to_human_readable(self, value):
         try:
