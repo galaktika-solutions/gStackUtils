@@ -3,10 +3,10 @@ import os
 
 from gstackutils.db import ensure, wait_for_db
 from gstackutils.exceptions import DatabaseNotPresent
-from .test_conf import ConfTestCase
+from . import CleanTestCase
 
 
-class TestDB(ConfTestCase):
+class TestDB(CleanTestCase):
     def test_ensure(self):
         ensure()
 

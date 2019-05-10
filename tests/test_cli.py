@@ -2,12 +2,12 @@ import os
 
 from click.testing import CliRunner
 
-from .test_conf import ConfTestCase
+from .test_conf import CleanTestCase
 from gstackutils.cli import cli
 # from gstackutils.run import run
 
 
-class TestConfCLI(ConfTestCase):
+class TestConfCLI(CleanTestCase):
     def test_inspect(self):
         runner = CliRunner()
         result = runner.invoke(cli, ["conf", "inspect"])
@@ -71,7 +71,7 @@ class TestConfCLI(ConfTestCase):
     #     self.assertEqual(retcode, 1)
 
 
-class TestCert(ConfTestCase):
+class TestCert(CleanTestCase):
     def test_cert(self):
         runner = CliRunner()
         runner.invoke(cli, ["cert", "-n", "mysite.com", "--silent"])
