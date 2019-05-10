@@ -6,6 +6,9 @@ from gstackutils.fields import (
     SecretString,
     EnvBool,
     EnvFile,
+    EnvInteger,
+    EnvStringList,
+    EnvEmail,
 )
 from gstackutils.exceptions import (
     ConfigMissingError,
@@ -13,6 +16,7 @@ from gstackutils.exceptions import (
     DefaultUsedException,
     ImproperlyConfigured,
     ServiceNotFound,
+    InvalidValue,
 )
 from gstackutils.config import Config
 
@@ -125,9 +129,19 @@ class TestConfFields(CleanTestCase):
         conffield = SecretString()
         conffield._setup_field(self.config(), "Y")
         with self.assertRaises(ConfigMissingError):
-            print(conffield.get(root=False))
+            conffield.get(root=False)
         with self.assertRaises(ServiceNotFound):
             conffield.set_app("yyy", "test")
+
+        conffield.prepare("foo")
+        with self.assertRaises(ConfigMissingError):
+            conffield.get_app()
+
+        conffield = EnvString()
+        conffield._setup_field(self.config(), "A")
+        conffield.set_app("aaa")
+        with self.assertRaises(ConfigMissingError):
+            conffield.get_app()
 
     def test_bool(self):
         conffield = EnvBool()
@@ -136,6 +150,8 @@ class TestConfFields(CleanTestCase):
         self.assertEqual(conffield.get(root=True), True)
         conffield.set(False)
         self.assertEqual(conffield.get(root=True), False)
+        with self.assertRaises(InvalidValue):
+            conffield.to_python(b"xxx")
 
     def test_file(self):
         conffield = EnvFile()
@@ -148,3 +164,26 @@ class TestConfFields(CleanTestCase):
         )
         with open(".env", "r") as f:
             self.assertEqual(f.read(), "one=YWJj\n")
+
+    def test_int(self):
+        conffield = EnvInteger()
+        conffield._setup_field(self.config(), "one")
+        conffield.set(42)
+        self.assertEqual(conffield.get(root=True), 42)
+        with self.assertRaises(InvalidValue):
+            conffield.to_python(b"x")
+
+    def test_list(self):
+        conffield = EnvStringList()
+        conffield._setup_field(self.config(), "one")
+        conffield.set(["a", "b", "c"])
+        self.assertEqual(conffield.get(root=True), ["a", "b", "c"])
+        with self.assertRaises(ValidationError):
+            conffield.set(["a", "b", 42])
+        self.assertEqual(conffield.to_human_readable(["1"]), "['1']")
+
+    def test_mail(self):
+        conffield = EnvEmail()
+        self.assertEqual(conffield.to_python(b"a@b"), ("", "a@b"))
+        self.assertEqual(conffield.to_bytes(("", "a@b")), b"a@b")
+        self.assertEqual(conffield.to_bytes(("a", "a@b")), b"a <a@b>")

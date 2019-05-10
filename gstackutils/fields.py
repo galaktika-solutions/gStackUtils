@@ -6,7 +6,7 @@ from email.utils import parseaddr
 
 from .exceptions import (
     ConfigMissingError, DefaultUsedException, ValidationError,
-    ImproperlyConfigured, ServiceNotFound
+    ImproperlyConfigured, ServiceNotFound, InvalidValue,
 )
 from .validators import (
     MinMaxLengthValidator,
@@ -247,7 +247,10 @@ class IntMixin:
         super().__init__(**kwargs)
 
     def to_python(self, b):
-        return int(b)
+        try:
+            return int(b)
+        except ValueError:
+            raise InvalidValue()
 
     def to_bytes(self, value):
         return str(value).encode()
@@ -325,7 +328,7 @@ class EnvBool(EnvConfigField):
             return True
         elif b == b"False":
             return False
-        return None
+        raise InvalidValue()
 
     def to_bytes(self, value):
         return b"True" if value else b"False"
@@ -350,7 +353,9 @@ class EnvEmail(EnvString):
         return parseaddr(b.decode())
 
     def to_bytes(self, value):
-        return f"{value[0]} <{value[1]}>".encode()
+        if value[0]:
+            return f"{value[0]} <{value[1]}>".encode()
+        return value[1].encode()
 
 
 class EnvEmailList(ListMixin, EnvEmail):

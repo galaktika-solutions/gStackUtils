@@ -24,3 +24,7 @@ class DefaultUsedException(Exception):
 
 class PermissionDenied(Exception):
     pass
+
+
+class InvalidValue(Exception):
+    pass
