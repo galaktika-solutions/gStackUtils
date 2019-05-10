@@ -17,11 +17,10 @@ class DJANGO(Section):
     DJANGO_SECRET_KEY = SecretString(min_length=64, services={"django": ["django"]})
 
 
-# def validate(conf):
-#     ret = []
-#     if not conf.get("UWSGI") and not conf.is_dev:
-#         ret.append("UWSGI must be set to True in production.")
-#     return ret
+def validate(conf):
+    ret = []
+    # ret.append("An error message to show.")
+    return ret
 
 
 def pg_init(conf):

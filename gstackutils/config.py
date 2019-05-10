@@ -116,10 +116,9 @@ class Config:
             return getattr(self.default_config_module, name)
         return default
 
-#     def validate(self):
-#         Do NOT use default for validation
-#         validate_func = self.env("validate", lambda x: None)
-#         return validate_func(self)
+    def validate(self):
+        if hasattr(self.config_module, "validate"):
+            return getattr(self.config_module, "validate")(self)
 
     def inspect_config(self, name):
         if name not in self.field_map:
@@ -150,7 +149,7 @@ class Config:
         if not self.root_mode:
             raise PermissionDenied("This operation is allowed in root mode only.")
         info = {}
-        # valid = True
+        valid = True
         for field_name, field_instance, section_instance in self.fields:
             try:
                 value = field_instance.get(root=True, default_exception=True, validate=True)
@@ -167,7 +166,7 @@ class Config:
             if flag in ("OK", "DEF"):
                 value = field_instance.to_human_readable(value)
             else:
-                # valid = False
+                valid = False
                 pass
             section_list = info.setdefault(section_instance, [])
             section_list.append((field_name, flag, value))
@@ -191,18 +190,18 @@ class Config:
                 click.echo(f"    {name:>{max_name}} {flag} {value}")
             click.echo()
 
-        # click.echo("Cross validation")
-        # click.echo()
-        # if valid:
-        #     validation_errors = self.validate()
-        #     if validation_errors:
-        #         for ve in validation_errors:
-        #             click.secho(f"    {ve}", fg="red", bold=True)
-        #     else:
-        #         click.secho(f"    OK", fg="green", bold=True)
-        # else:
-        #     click.secho(f"    Did not validate due to value errors.", fg="yellow", bold=True)
-        # click.echo()
+        click.echo("Cross validation")
+        click.echo()
+        if valid:
+            validation_errors = self.validate()
+            if validation_errors:
+                for ve in validation_errors:
+                    click.secho(f"    {ve}", fg="red", bold=True)
+            else:
+                click.secho(f"    OK", fg="green", bold=True)
+        else:
+            click.secho(f"    Did not validate due to value errors.", fg="yellow", bold=True)
+        click.echo()
 
         self.stale_list(
             self.env_file_path, EnvConfigField, SecretConfigField, "environment", delete_stale
