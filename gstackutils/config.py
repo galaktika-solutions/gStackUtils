@@ -11,11 +11,7 @@ from .helpers import (
     path_check,
     ask,
 )
-from .fields import (
-    ConfigField,
-    SecretConfigField,
-    EnvConfigField,
-)
+from .fields import ConfigField
 from .exceptions import (
     DefaultUsedException,
     ConfigMissingError,
@@ -203,16 +199,13 @@ class Config:
             click.secho(f"    Did not validate due to value errors.", fg="yellow", bold=True)
         click.echo()
 
-        self.stale_list(
-            self.env_file_path, EnvConfigField, SecretConfigField, "environment", delete_stale
-        )
-        self.stale_list(
-            self.secret_file_path, SecretConfigField, EnvConfigField, "secret", delete_stale
-        )
+        self.stale_list(False, delete_stale)
+        self.stale_list(True, delete_stale)
 
-    def stale_list(self, filepath, klass, otherklass, name, delete_stale):
+    def stale_list(self, secret, delete_stale):
         regex = r"([^#^\s^=]+)="
         stale = []
+        filepath = self.secret_file_path if secret else self.env_file_path
         with open(filepath, "r") as f:
             for l in f.readlines():
                 m = re.match(regex, l)
@@ -220,21 +213,20 @@ class Config:
                     confname = m.group(1)
                     try:
                         f = self.fieldbyname(confname)
-                        if isinstance(f, otherklass):
+                        if f.secret != secret:
                             stale.append(confname)
                     except KeyError:
                         stale.append(confname)
-
         if not stale:
             return
 
         if delete_stale:
             for n in stale:
-                f = klass()
+                f = ConfigField(secret=secret)
                 f._setup_field(self, n)
                 f.set_root(None)
         else:
-            click.echo(f"Stale {name} config:")
+            click.echo(f"Stale {'secret' if secret else 'environment'} config:")
             click.echo()
             for n in stale:
                 click.secho(f"    {n}", fg="red", bold=True)
@@ -338,7 +330,7 @@ def set_cli(name, value, no_validate, random, stdin, file):
         else:
             # value = input("Value: ").encode()
             value = click.prompt(
-                "Value", hide_input=field.hide_input, confirmation_prompt=field.hide_input
+                "Value", hide_input=field.secret, confirmation_prompt=field.secret
             ).encode()
     else:
         value = value.encode()

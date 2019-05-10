@@ -2,19 +2,25 @@ import psycopg2
 
 from .helpers import pg_pass
 from .config import Section
-from .fields import SecretString
+from . import fields
 from .db import ensure, wait_for_db
 from .run import run
 
 
 class POSTGRES(Section):
-    DB_PASSWORD_POSTGRES = SecretString(min_length=8)
-    DB_PASSWORD_DJANGO = SecretString(min_length=8, services={"django": ["django"]})
-    DB_PASSWORD_EXPLORER = SecretString(min_length=8, services={"django": ["django"]})
+    DB_PASSWORD_POSTGRES = fields.StringConfig(secret=True, min_length=8)
+    DB_PASSWORD_DJANGO = fields.StringConfig(
+        secret=True, min_length=8, services={"django": ["django"]}
+    )
+    DB_PASSWORD_EXPLORER = fields.StringConfig(
+        secret=True, min_length=8, services={"django": ["django"]}
+    )
 
 
 class DJANGO(Section):
-    DJANGO_SECRET_KEY = SecretString(min_length=64, services={"django": ["django"]})
+    DJANGO_SECRET_KEY = fields.StringConfig(
+        secret=True, min_length=64, services={"django": ["django"]}
+    )
 
 
 def validate(conf):

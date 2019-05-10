@@ -2,8 +2,8 @@ import os
 
 from click.testing import CliRunner
 
-from .test_conf import CleanTestCase
 from gstackutils.cli import cli
+from . import CleanTestCase
 
 
 class TestConfCLI(CleanTestCase):

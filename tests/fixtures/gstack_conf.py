@@ -1,7 +1,7 @@
 import psycopg2
 
 from gstackutils.config import Section
-from gstackutils.fields import EnvString, SecretString, EnvBool
+from gstackutils import fields
 from gstackutils.helpers import pg_pass
 
 
@@ -14,11 +14,11 @@ GSTACK_PG_CONF_ORIG = "postgresql.conf"
 
 
 class First(Section):
-    ANIMAL = EnvString(default="duck")
-    SAIS = SecretString(default="quack", min_length=3, services={"test": {}})
-    LIKES = EnvString(min_length=5)
-    COLOR = EnvString()
-    DANGEROUS = EnvBool(default=False)
+    ANIMAL = fields.StringConfig(default="duck")
+    SAIS = fields.StringConfig(secret=True, default="quack", min_length=3, services={"test": {}})
+    LIKES = fields.StringConfig(min_length=5)
+    COLOR = fields.StringConfig()
+    DANGEROUS = fields.BoolConfig(default=False)
 
 
 class Empty(Section):

@@ -14,7 +14,7 @@ from .validators import (
     PrivateKeyValidator,
     CertificateValidator,
     EmailValidator,
-    MinMaxValueValidator
+    MinMaxValueValidator,
 )
 from .helpers import uid as _uid, gid as _gid
 
@@ -26,16 +26,51 @@ class NotSet:
 class ConfigField:
     ENV_REGEX = re.compile(r"^\s*([^#].*?)=(.*)$")
     b64 = False
-    services = []
     default_validators = []
-    hide_input = False
 
-    def __init__(self, default=NotSet(), help_text=None, validators=[]):
+    def __init__(
+        self, default=NotSet(), help_text=None,
+        validators=[], services=[], secret=False,
+    ):
         self.default = default
         self.help_text = help_text
         self.validators = validators
+        self.secret = secret
+        if secret:
+            self.b64 = True
         self.name = None
         self.config = None
+
+        if not isinstance(services, (list, tuple, dict)):
+            raise ImproperlyConfigured(
+                "The `services` parameter must be a tuple, a list or a dict"
+            )
+        if isinstance(services, (list, tuple)):
+            services = dict([(k, []) for k in services])
+        self.services = {}
+        for s, ugm in services.items():
+            if isinstance(ugm, (tuple, list)):
+                if len(ugm) == 0:
+                    self.services[s] = {"uid": 0, "gid": 0, "mode": 0o400}
+                elif len(ugm) == 1:
+                    self.services[s] = {"uid": ugm[0], "gid": ugm[0], "mode": 0o400}
+                elif len(ugm) == 2:
+                    self.services[s] = {"uid": ugm[0], "gid": ugm[1], "mode": 0o400}
+                else:
+                    self.services[s] = {"uid": ugm[0], "gid": ugm[1], "mode": ugm[2]}
+            elif isinstance(ugm, dict):
+                p = {}
+                for k in ["uid", "gid", "mode"]:
+                    if k in ugm:
+                        p[k] = ugm[k]
+                u = p.setdefault("uid", 0)
+                p.setdefault("gid", u)
+                p.setdefault("mode", 0o400)
+                self.services[s] = p
+            else:
+                raise ImproperlyConfigured(
+                    "A service item must be a tuple, a list or a dict"
+                )
 
     def _setup_field(self, config, name):
         self.name = name
@@ -123,7 +158,7 @@ class ConfigField:
             self.set_app(value, service)
 
     def get_filepath(self):
-        raise NotImplementedError()
+        return self.config.secret_file_path if self.secret else self.config.env_file_path
 
     def to_python(self, b):
         raise NotImplementedError()
@@ -132,78 +167,22 @@ class ConfigField:
         raise NotImplementedError()
 
     def get_app(self):
-        raise NotImplementedError()
+        if self.secret:
+            fn = os.path.join(self.config.secret_dir, self.name)
+            try:
+                with open(fn, "rb") as f:
+                    return self.to_python(f.read())
+            except (FileNotFoundError, PermissionError):
+                raise ConfigMissingError()
 
-    def set_app(self, value, service=None):
-        raise NotImplementedError()
-
-    def to_human_readable(self, value):
-        return str(value)
-
-
-class EnvConfigField(ConfigField):
-    def get_filepath(self):
-        return self.config.env_file_path
-
-    def get_app(self):
         s = os.environ.get(self.name)
         if s is None:
             raise ConfigMissingError()
         return self.to_python(s.encode())
 
     def set_app(self, value, service=None):
-        pass
-
-
-class SecretConfigField(ConfigField):
-    b64 = True
-    hide_input = True
-
-    def __init__(self, services=[], **kwargs):
-        if not isinstance(services, (list, tuple, dict)):
-            raise ImproperlyConfigured(
-                "The `services` parameter must be a tuple, a list or a dict"
-            )
-        if isinstance(services, (list, tuple)):
-            services = dict([(k, []) for k in services])
-        self.services = {}
-        for s, ugm in services.items():
-            if isinstance(ugm, (tuple, list)):
-                if len(ugm) == 0:
-                    self.services[s] = {"uid": 0, "gid": 0, "mode": 0o400}
-                elif len(ugm) == 1:
-                    self.services[s] = {"uid": ugm[0], "gid": ugm[0], "mode": 0o400}
-                elif len(ugm) == 2:
-                    self.services[s] = {"uid": ugm[0], "gid": ugm[1], "mode": 0o400}
-                else:
-                    self.services[s] = {"uid": ugm[0], "gid": ugm[1], "mode": ugm[2]}
-            elif isinstance(ugm, dict):
-                p = {}
-                for k in ["uid", "gid", "mode"]:
-                    if k in ugm:
-                        p[k] = ugm[k]
-                u = p.setdefault("uid", 0)
-                p.setdefault("gid", u)
-                p.setdefault("mode", 0o400)
-                self.services[s] = p
-            else:
-                raise ImproperlyConfigured(
-                    "A service item must be a tuple, a list or a dict"
-                )
-        super().__init__(**kwargs)
-
-    def get_filepath(self):
-        return self.config.secret_file_path
-
-    def get_app(self):
-        fn = os.path.join(self.config.secret_dir, self.name)
-        try:
-            with open(fn, "rb") as f:
-                return self.to_python(f.read())
-        except (FileNotFoundError, PermissionError):
-            raise ConfigMissingError()
-
-    def set_app(self, value, service=None):
+        if not self.secret:
+            return
         try:
             s = self.services[service]
         except KeyError:
@@ -218,10 +197,12 @@ class SecretConfigField(ConfigField):
         os.chmod(fn, mode)
 
     def to_human_readable(self, value):
-        return "*****"
+        if self.secret:
+            return "*****"
+        return str(value)
 
 
-class StringMixin:
+class StringConfig(ConfigField):
     validate_type = str
     default_validators = [MinMaxLengthValidator(), TypeValidator()]
 
@@ -237,7 +218,7 @@ class StringMixin:
         return value.encode()
 
 
-class IntMixin:
+class IntConfig(ConfigField):
     validate_type = int
     default_validators = [MinMaxValueValidator(), TypeValidator()]
 
@@ -256,7 +237,7 @@ class IntMixin:
         return str(value).encode()
 
 
-class FileMixin:
+class FileConfig(ConfigField):
     validate_type = bytes
     default_validators = [MinMaxLengthValidator(), TypeValidator()]
 
@@ -274,6 +255,77 @@ class FileMixin:
 
     def to_human_readable(self, value):
         return f"File of size {len(value)} bytes"
+
+
+class BoolConfig(ConfigField):
+    validate_type = bool
+    default_validators = [TypeValidator()]
+
+    def to_python(self, b):
+        if b == b"True":
+            return True
+        elif b == b"False":
+            return False
+        raise InvalidValue()
+
+    def to_bytes(self, value):
+        return b"True" if value else b"False"
+
+
+class EmailConfig(StringConfig):
+    default_validators = [EmailValidator()]
+
+    def to_python(self, b):
+        return parseaddr(b.decode())
+
+    def to_bytes(self, value):
+        if value[0]:
+            return f"{value[0]} <{value[1]}>".encode()
+        return value[1].encode()
+
+
+class SSLPrivateKey(FileConfig):
+    default_validators = [MinMaxLengthValidator(), TypeValidator(), PrivateKeyValidator()]
+
+    def __init__(self, secret=True, **kwargs):
+        if secret is False:
+            raise ImproperlyConfigured("SSLPrivateKey must be secret.")
+        super().__init__(**kwargs)
+        self.secret = True
+
+    def to_human_readable(self, value):
+        return f"SSL private key file of size {len(value)} bytes"
+
+
+class SSLCertificate(FileConfig):
+    default_validators = [MinMaxLengthValidator(), TypeValidator(), CertificateValidator()]
+
+    def __init__(self, getname=None, getca=None, **kwargs):
+        self.getname = getname
+        self.getca = getca
+        super().__init__(**kwargs)
+
+    def to_human_readable(self, value):
+        try:
+            ret = subprocess.run(
+                ("openssl", "x509", "-text", "-noout"),
+                input=value, check=True,
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE
+            )
+        except subprocess.CalledProcessError:
+            return "SSL certificate (could not load info)"
+
+        stdout = ret.stdout.decode()
+        try:
+            cn = re.match(r".*Subject: CN = (.+?)\n", stdout, re.DOTALL).group(1)
+        except AttributeError:
+            cn = "?"
+        try:
+            ex = re.match(r".*Not After\s*: (.+?)\n", stdout, re.DOTALL).group(1)
+        except AttributeError:
+            ex = "?"
+
+        return f"SSL certificate for '{cn}' (exp.: {ex})"
 
 
 class ListMixin:
@@ -303,99 +355,14 @@ class ListMixin:
         return str([super(ListMixin, self).to_human_readable(x) for x in value])
 
 
-class EnvString(StringMixin, EnvConfigField):
+class StringListConfig(ListMixin, StringConfig):
     pass
 
 
-class SecretString(StringMixin, SecretConfigField):
-    pass
-
-
-class EnvInteger(IntMixin, EnvConfigField):
-    pass
-
-
-class SecretInteger(IntMixin, SecretConfigField):
-    pass
-
-
-class EnvBool(EnvConfigField):
-    validate_type = bool
-    default_validators = [TypeValidator()]
-
-    def to_python(self, b):
-        if b == b"True":
-            return True
-        elif b == b"False":
-            return False
-        raise InvalidValue()
-
-    def to_bytes(self, value):
-        return b"True" if value else b"False"
-
-
-class EnvFile(FileMixin, EnvConfigField):
-    pass
-
-
-class SecretFile(FileMixin, SecretConfigField):
-    pass
-
-
-class EnvStringList(ListMixin, EnvString):
-    pass
-
-
-class EnvEmail(EnvString):
-    default_validators = [EmailValidator()]
-
-    def to_python(self, b):
-        return parseaddr(b.decode())
-
-    def to_bytes(self, value):
-        if value[0]:
-            return f"{value[0]} <{value[1]}>".encode()
-        return value[1].encode()
-
-
-class EnvEmailList(ListMixin, EnvEmail):
+class EmailListConfig(ListMixin, EmailConfig):
     def to_human_readable(self, value):
         return str(value)
 
 
-class SSLPrivateKey(SecretFile):
-    default_validators = [MinMaxLengthValidator(), TypeValidator(), PrivateKeyValidator()]
-
-    def to_human_readable(self, value):
-        return f"SSL private key file of size {len(value)} bytes"
-
-
-class SSLCertificate(SecretFile):
-    default_validators = [MinMaxLengthValidator(), TypeValidator(), CertificateValidator()]
-
-    def __init__(self, getname=None, getca=None, **kwargs):
-        self.getname = getname
-        self.getca = getca
-        super().__init__(**kwargs)
-
-    def to_human_readable(self, value):
-        try:
-            ret = subprocess.run(
-                ("openssl", "x509", "-text", "-noout"),
-                input=value, check=True,
-                stdout=subprocess.PIPE, stderr=subprocess.PIPE
-            )
-        except subprocess.CalledProcessError:
-            return "SSL certificate (could not load info)"
-
-        stdout = ret.stdout.decode()
-        try:
-            cn = re.match(r".*Subject: CN = (.+?)\n", stdout, re.DOTALL).group(1)
-        except AttributeError:
-            cn = "?"
-        try:
-            ex = re.match(r".*Not After\s*: (.+?)\n", stdout, re.DOTALL).group(1)
-        except AttributeError:
-            ex = "?"
-
-        return f"SSL certificate for '{cn}' (exp.: {ex})"
+class IntListConfig(ListMixin, IntConfig):
+    pass

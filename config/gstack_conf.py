@@ -1,26 +1,13 @@
 from gstackutils.config import Section
 from gstackutils.helpers import pg_pass
-from gstackutils.fields import (
-    EnvString,
-    SecretString,
-    EnvBool,
-    EnvFile,
-    SecretFile,
-    SSLPrivateKey,
-    SSLCertificate,
-    EnvStringList,
-    EnvEmail,
-    EnvEmailList,
-    EnvInteger,
-    SecretInteger,
-)
+from gstackutils import fields
 from gstackutils.validators import IPValidator, HostNameValidator
 
 
 class PYPI_CREDENTIALS(Section):
     """Credentials for https://pypi.org/"""
-    PYPI_USERNAME = EnvString()
-    PYPI_PASSWORD = SecretString(min_length=8)
+    PYPI_USERNAME = fields.StringConfig()
+    PYPI_PASSWORD = fields.StringConfig(secret=True, min_length=8)
 
 
 from gstackutils.default_gstack_conf import POSTGRES, DJANGO  # noqa
@@ -28,20 +15,22 @@ from gstackutils.default_gstack_conf import POSTGRES, DJANGO  # noqa
 
 class TESTING(Section):
     """Definitions for testing purposes only."""
-    ENVSTRING = EnvString()
-    SECRETSTRING = SecretString(min_length=8, help_text="Some secret long enough.")
-    BOOL = EnvBool(default=False)
-    ENVFILE = EnvFile(min_length=50)
-    SECRETFILE = SecretFile(max_length=100)
-    PRIVATEKEY = SSLPrivateKey()
-    HOSTNAME = EnvString(validators=[HostNameValidator()])
-    CERTIFICATE = SSLCertificate(getname=lambda conf: conf.get("HOSTNAME"))
-    ENVSTRINGLIST = EnvStringList(separator="|", default=["a", "b"])
-    ENVEMAIL = EnvEmail()
-    ENVEMAILLIST = EnvEmailList()
-    ENVINTEGER = EnvInteger()
-    SECRETINTEGER = SecretInteger(default=0, max_value=-1)
-    IP = EnvString(validators=[IPValidator(range=True)])
+    ENVSTRING = fields.StringConfig()
+    SECRETSTRING = fields.StringConfig(
+        secret=True, min_length=8, help_text="Some secret long enough."
+    )
+    BOOL = fields.BoolConfig(default=False)
+    ENVFILE = fields.FileConfig(min_length=50)
+    SECRETFILE = fields.FileConfig(secret=True, max_length=100)
+    PRIVATEKEY = fields.SSLPrivateKey()
+    HOSTNAME = fields.StringConfig(validators=[HostNameValidator()])
+    CERTIFICATE = fields.SSLCertificate(getname=lambda conf: conf.get("HOSTNAME"))
+    ENVSTRINGLIST = fields.StringListConfig(separator="|", default=["a", "b"])
+    ENVEMAIL = fields.EmailConfig()
+    ENVEMAILLIST = fields.EmailListConfig()
+    ENVINTEGER = fields.IntConfig()
+    SECRETINTEGER = fields.IntConfig(secret=True, default=0, max_value=-1)
+    IPRANGE = fields.StringConfig(validators=[IPValidator(range=True)])
     # CACERT = SSLCertificate(default=b"", validate=False)
 
 

@@ -1,24 +1,10 @@
 import os
 
 from . import CleanTestCase
-from gstackutils.fields import (
-    EnvString,
-    SecretString,
-    EnvBool,
-    EnvFile,
-    EnvInteger,
-    EnvStringList,
-    EnvEmail,
-)
-from gstackutils.exceptions import (
-    ConfigMissingError,
-    ValidationError,
-    DefaultUsedException,
-    ImproperlyConfigured,
-    ServiceNotFound,
-    InvalidValue,
-)
+from gstackutils import fields
+from gstackutils import exceptions
 from gstackutils.config import Config
+from gstackutils import validators
 
 
 class TestConfFields(CleanTestCase):
@@ -26,14 +12,13 @@ class TestConfFields(CleanTestCase):
         return Config(config_module="empty_conf", use_default_config_module=False)
 
     def test_envstring(self):
-        conffield = EnvString(min_length=2, max_length=5)
-        # conffield = EnvString()
+        conffield = fields.StringConfig(min_length=2, max_length=5)
         conffield._setup_field(self.config(), "X")
 
         # missing
-        with self.assertRaises(ConfigMissingError):
+        with self.assertRaises(exceptions.ConfigMissingError):
             conffield.get(root=True)
-        with self.assertRaises(ConfigMissingError):
+        with self.assertRaises(exceptions.ConfigMissingError):
             conffield.get(root=False)
 
         # present
@@ -47,25 +32,25 @@ class TestConfFields(CleanTestCase):
         conffield.set(None)
 
         # validation
-        with self.assertRaises(ValidationError):
+        with self.assertRaises(exceptions.ValidationError):
             conffield.set("b")
-        with self.assertRaises(ValidationError):
+        with self.assertRaises(exceptions.ValidationError):
             conffield.set("bazzzz")
 
         os.environ["X"] = "foooooooo"
-        with self.assertRaises(ValidationError):
+        with self.assertRaises(exceptions.ValidationError):
             conffield.get(root=False, validate=True)
         del os.environ["X"]
 
         # default
-        conffield = EnvString(default="okay")
+        conffield = fields.StringConfig(default="okay")
         conffield._setup_field(self.config(), "X")
         self.assertEqual(conffield.get(root=True), "okay")
-        with self.assertRaises(DefaultUsedException):
+        with self.assertRaises(exceptions.DefaultUsedException):
             conffield.get(root=True, default_exception=True)
 
     def test_secretstring(self):
-        conffield = SecretString(min_length=2, max_length=10)
+        conffield = fields.StringConfig(secret=True, min_length=2, max_length=10)
         conffield._setup_field(self.config(), "X")
 
         conffield.set("secret")
@@ -74,16 +59,16 @@ class TestConfFields(CleanTestCase):
         self.assertEqual(conffield.get(root=True), "secret")
 
     def test_no_file(self):
-        conffield = EnvString()
+        conffield = fields.StringConfig()
         conffield._setup_field(self.config(), "x")
         os.remove(".env")
-        with self.assertRaises(ConfigMissingError):
+        with self.assertRaises(exceptions.ConfigMissingError):
             conffield.get(root=True)
 
     def test_multiple_lines(self):
-        conffield1 = EnvString()
-        conffield2 = EnvString()
-        conffield3 = EnvString()
+        conffield1 = fields.StringConfig()
+        conffield2 = fields.StringConfig()
+        conffield3 = fields.StringConfig()
         conffield1._setup_field(self.config(), "one")
         conffield2._setup_field(self.config(), "two")
         conffield3._setup_field(self.config(), "three")
@@ -93,25 +78,46 @@ class TestConfFields(CleanTestCase):
         conffield3.set("3333333333")
         self.assertEqual(conffield2.get(root=True), "2222222222")
         conffield2.set(None)
-        with self.assertRaises(ConfigMissingError):
+        with self.assertRaises(exceptions.ConfigMissingError):
             conffield2.get(root=True)
         conffield1.set("xxx")
         self.assertEqual(conffield1.get(root=True), "xxx")
 
     def test_human_readable(self):
-        conffield = EnvString()
+        conffield = fields.StringConfig()
         conffield._setup_field(self.config(), "x")
         self.assertEqual(conffield.to_human_readable("áíő"), "áíő")
 
     def test_prepare_secret(self):
         for conffield, expected in [
-            (SecretString(services=["test"]), (0, 0, 0o400)),
-            (SecretString(services={"test": [1000]}), (1000, 1000, 0o400)),
-            (SecretString(services={"test": [1000, 2000]}), (1000, 2000, 0o400)),
-            (SecretString(services={"test": [1000, 2000, 0o640]}), (1000, 2000, 0o640)),
-            (SecretString(services={"test": {}}), (0, 0, 0o400)),
-            (SecretString(services={"test": {"uid": 1000}}), (1000, 1000, 0o400)),
-            (SecretString(services={"test": {"gid": 1000}}), (0, 1000, 0o400)),
+            (
+                fields.StringConfig(secret=True, services=["test"]),
+                (0, 0, 0o400)
+            ),
+            (
+                fields.StringConfig(secret=True, services={"test": [1000]}),
+                (1000, 1000, 0o400)
+            ),
+            (
+                fields.StringConfig(secret=True, services={"test": [1000, 2000]}),
+                (1000, 2000, 0o400)
+            ),
+            (
+                fields.StringConfig(secret=True, services={"test": [1000, 2000, 0o640]}),
+                (1000, 2000, 0o640)
+            ),
+            (
+                fields.StringConfig(secret=True, services={"test": {}}),
+                (0, 0, 0o400)
+            ),
+            (
+                fields.StringConfig(secret=True, services={"test": {"uid": 1000}}),
+                (1000, 1000, 0o400)
+            ),
+            (
+                fields.StringConfig(secret=True, services={"test": {"gid": 1000}}),
+                (0, 1000, 0o400)
+            ),
         ]:
             conffield._setup_field(self.config(), "X")
             conffield.set("xxx")
@@ -121,40 +127,40 @@ class TestConfFields(CleanTestCase):
             self.assertEqual(stat.st_uid, expected[0])
             self.assertEqual(stat.st_gid, expected[1])
             self.assertEqual(stat.st_mode & 0o777, expected[2])
-        with self.assertRaises(ImproperlyConfigured):
-            SecretString(services=None)
-        with self.assertRaises(ImproperlyConfigured):
-            SecretString(services={"test": None})
+        with self.assertRaises(exceptions.ImproperlyConfigured):
+            fields.StringConfig(secret=True, services=None)
+        with self.assertRaises(exceptions.ImproperlyConfigured):
+            fields.StringConfig(secret=True, services={"test": None})
 
-        conffield = SecretString()
+        conffield = fields.StringConfig(secret=True)
         conffield._setup_field(self.config(), "Y")
-        with self.assertRaises(ConfigMissingError):
+        with self.assertRaises(exceptions.ConfigMissingError):
             conffield.get(root=False)
-        with self.assertRaises(ServiceNotFound):
+        with self.assertRaises(exceptions.ServiceNotFound):
             conffield.set_app("yyy", "test")
 
         conffield.prepare("foo")
-        with self.assertRaises(ConfigMissingError):
+        with self.assertRaises(exceptions.ConfigMissingError):
             conffield.get_app()
 
-        conffield = EnvString()
+        conffield = fields.StringConfig()
         conffield._setup_field(self.config(), "A")
         conffield.set_app("aaa")
-        with self.assertRaises(ConfigMissingError):
+        with self.assertRaises(exceptions.ConfigMissingError):
             conffield.get_app()
 
     def test_bool(self):
-        conffield = EnvBool()
+        conffield = fields.BoolConfig()
         conffield._setup_field(self.config(), "one")
         conffield.set(True)
         self.assertEqual(conffield.get(root=True), True)
         conffield.set(False)
         self.assertEqual(conffield.get(root=True), False)
-        with self.assertRaises(InvalidValue):
+        with self.assertRaises(exceptions.InvalidValue):
             conffield.to_python(b"xxx")
 
     def test_file(self):
-        conffield = EnvFile()
+        conffield = fields.FileConfig()
         conffield._setup_field(self.config(), "one")
         conffield.set(b"abc")
         self.assertEqual(conffield.get(root=True), b"abc")
@@ -166,24 +172,32 @@ class TestConfFields(CleanTestCase):
             self.assertEqual(f.read(), "one=YWJj\n")
 
     def test_int(self):
-        conffield = EnvInteger()
+        conffield = fields.IntConfig()
         conffield._setup_field(self.config(), "one")
         conffield.set(42)
         self.assertEqual(conffield.get(root=True), 42)
-        with self.assertRaises(InvalidValue):
+        with self.assertRaises(exceptions.InvalidValue):
             conffield.to_python(b"x")
 
     def test_list(self):
-        conffield = EnvStringList()
+        conffield = fields.StringListConfig()
         conffield._setup_field(self.config(), "one")
         conffield.set(["a", "b", "c"])
         self.assertEqual(conffield.get(root=True), ["a", "b", "c"])
-        with self.assertRaises(ValidationError):
+        with self.assertRaises(exceptions.ValidationError):
             conffield.set(["a", "b", 42])
         self.assertEqual(conffield.to_human_readable(["1"]), "['1']")
 
     def test_mail(self):
-        conffield = EnvEmail()
+        conffield = fields.EmailConfig()
         self.assertEqual(conffield.to_python(b"a@b"), ("", "a@b"))
         self.assertEqual(conffield.to_bytes(("", "a@b")), b"a@b")
         self.assertEqual(conffield.to_bytes(("a", "a@b")), b"a <a@b>")
+
+    def test_privatekey(self):
+        with self.assertRaises(exceptions.ImproperlyConfigured):
+            fields.SSLPrivateKey(secret=False)
+        conffield = fields.SSLPrivateKey()
+        conffield._setup_field(self.config(), "PK")
+        hr = conffield.to_human_readable(validators.CertificateValidator.pk.encode())
+        self.assertEqual(hr, "SSL private key file of size 1674 bytes")

@@ -1,5 +1,5 @@
 from gstackutils.config import Section
-from gstackutils.fields import EnvString
+from gstackutils import fields
 
 
 GSTACK_ENV_FILE = ".env"
@@ -11,8 +11,8 @@ GSTACK_PG_CONF_ORIG = "postgresql.conf"
 
 
 class First(Section):
-    ANIMAL = EnvString(default="duck")
+    ANIMAL = fields.StringConfig(default="duck")
 
 
 class Empty(Section):
-    ANIMAL = EnvString()
+    ANIMAL = fields.StringConfig()
