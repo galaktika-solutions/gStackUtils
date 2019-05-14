@@ -62,6 +62,7 @@ def run(cmd, usr=0, grp=None, stopsignal=None, exit=False, silent=False, cwd=Non
         cmd, preexec_fn=preexec_fn, env=env,
         stdout=subprocess.DEVNULL if silent else None,
         stderr=subprocess.DEVNULL if silent else None,
+        start_new_session=True,  # CVE-2016-2779
     )
 
     original_sigterm_handler = signal.getsignal(signal.SIGTERM)
