@@ -117,6 +117,8 @@ class Config:
             return getattr(self.config_module, "validate")(self)
 
     def inspect_config(self, name):
+        if not self.root_mode:
+            raise PermissionDenied("This operation is allowed in root mode only.")
         if name not in self.field_map:
             raise KeyError(f"No such config: {name}")
         fi, si = self.field_map[name]
@@ -254,6 +256,8 @@ class Config:
         return field.get(root=root)
 
     def set(self, name, value, no_validate=False, from_stdin=False):
+        if not self.root_mode:
+            raise PermissionDenied("This operation is allowed in root mode only.")
         try:
             field, _ = self.field_map[name]
         except KeyError:
@@ -281,10 +285,14 @@ def conf():
 @click.argument("name", required=False)
 @click.option("--delete-stale", "-d", is_flag=True)
 def inspect_cli(name, delete_stale):
+    try:
+        conf = Config(root_mode=True)
+    except PermissionDenied:
+        raise click.UsageError("Must be root to use this.")
     if name:
-        Config().inspect_config(name)
+        conf.inspect_config(name)
     else:
-        Config().inspect(delete_stale)
+        conf.inspect(delete_stale)
 
 
 @conf.command(name="set")
@@ -295,12 +303,15 @@ def inspect_cli(name, delete_stale):
 @click.option("--stdin", "-s", is_flag=True)
 @click.option("--file", "-f", type=click.File(mode="rb"))
 def set_cli(name, value, no_validate, random, stdin, file):
+    try:
+        conf = Config(root_mode=True)
+    except PermissionDenied:
+        raise click.UsageError("Must be root to use this.")
     numinputoptions = len([o for o in [random, stdin, file] if o])
     if numinputoptions > 1:
         raise click.UsageError(
             "Only one input method can be used: random, stdin or file.",
         )
-    config = Config()
     if not name:
         # we will ask for the variable, so no stdin allowed
         if stdin:
@@ -309,10 +320,10 @@ def set_cli(name, value, no_validate, random, stdin, file):
                 "If name is not given, we can not read from STDIN.",
             )
         # ask for the name
-        name = ask([f[0] for f in config.fields], prompt="Which config to set?")
+        name = ask([f[0] for f in conf.fields], prompt="Which config to set?")
 
     try:
-        field = config.fieldbyname(name)
+        field = conf.fieldbyname(name)
     except KeyError:
         raise click.ClickException(f"No such config: {name}")
 
@@ -336,7 +347,7 @@ def set_cli(name, value, no_validate, random, stdin, file):
         value = value.encode()
 
     try:
-        config.set(name, value, no_validate=no_validate, from_stdin=True)
+        conf.set(name, value, no_validate=no_validate, from_stdin=True)
     except ValidationError as e:
         arg = e.args[0]
         if isinstance(arg, str):
@@ -368,7 +379,8 @@ def delete(name):
         Config().set(name, None)
     except KeyError:
         raise click.ClickException(f"No such config: {name}")
-
+    except PermissionDenied:
+        raise click.UsageError("Must be root to use this.")
 
 # @conf.command()
 # @click.argument("service")
