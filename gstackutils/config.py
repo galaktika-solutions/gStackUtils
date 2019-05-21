@@ -1,24 +1,13 @@
 import os
 import importlib
 import inspect
-import random as rnd
-import string
 import re
 
 import click
 
-from .helpers import (
-    path_check,
-    ask,
-)
-from .fields import ConfigField
-from .exceptions import (
-    DefaultUsedException,
-    ConfigMissingError,
-    ValidationError,
-    PermissionDenied,
-    ImproperlyConfigured
-)
+from . import helpers
+from . import fields as modfields
+from . import exceptions
 
 
 FLAGS = {
@@ -33,6 +22,12 @@ FLAGS = {
         "DEF": (".", None),
         "MISS": ("?", None),
         "INV": ("!", None),
+    },
+    "words": {
+        "OK": ("OK  ", None),
+        "DEF": ("DEF ", None),
+        "MISS": ("MISS", None),
+        "INV": ("INV ", None),
     }
 }
 
@@ -49,12 +44,12 @@ class Config:
         self.is_dev = os.path.isdir(".git")
         self.root_mode = os.getuid() == 0
         if root_mode and not self.root_mode:
-            raise PermissionDenied(f"Can not set root mode, uid: {os.getuid()}")
+            raise exceptions.PermissionDenied(f"Can not set root mode, uid: {os.getuid()}")
         if root_mode is False:
             self.root_mode = False
 
         if not self.is_dev:
-            path_check("d", "/host", 0, 0, 0o22)
+            helpers.path_check("d", "/host", 0, 0, 0o22)
 
         cm = (
             config_module or
@@ -72,9 +67,9 @@ class Config:
         self.secret_dir = self.env("GSTACK_SECRET_DIR", "/run/secrets")
         self.theme = self.env("GSTACK_THEME", "colors")
 
-        path_check("f", self.env_file_path, self.pu, self.pg, 0o133, self.root_mode)
-        path_check("f", self.secret_file_path, self.pu, self.pg, 0o177, self.root_mode)
-        path_check("d", self.secret_dir, self.pu, self.pg, 0o22, self.root_mode)
+        helpers.path_check("f", self.env_file_path, self.pu, self.pg, 0o133, self.root_mode)
+        helpers.path_check("f", self.secret_file_path, self.pu, self.pg, 0o177, self.root_mode)
+        helpers.path_check("d", self.secret_dir, self.pu, self.pg, 0o22, self.root_mode)
 
         fields = []
         self.field_names = set()
@@ -87,7 +82,7 @@ class Config:
             section_fields = [
                 (field_name, field_instance)
                 for field_name, field_instance in S.__dict__.items()
-                if isinstance(field_instance, ConfigField)
+                if isinstance(field_instance, modfields.ConfigField)
             ]
             if not section_fields:
                 continue
@@ -95,7 +90,7 @@ class Config:
             section_instance = S(self)
             for field_name, field_instance in section_fields:
                 if field_name in self.field_names:
-                    raise ImproperlyConfigured(
+                    raise exceptions.ImproperlyConfigured(
                         f"Config '{field_name}' was defined multiple times."
                     )
                 field_instance._setup_field(self, field_name)
@@ -118,7 +113,7 @@ class Config:
 
     def inspect_config(self, name):
         if not self.root_mode:
-            raise PermissionDenied("This operation is allowed in root mode only.")
+            raise exceptions.PermissionDenied("This operation is allowed in root mode only.")
         if name not in self.field_map:
             raise KeyError(f"No such config: {name}")
         fi, si = self.field_map[name]
@@ -132,33 +127,35 @@ class Config:
 
         try:
             value = fi.get(root=True, default_exception=True, validate=True)
-        except DefaultUsedException:
+        except exceptions.DefaultUsedException:
             value = fi.default
             click.echo(f"value: {fi.to_human_readable(value)} (uses default)")
-        except ConfigMissingError:
+        except exceptions.ConfigMissingError:
             click.secho("Not set.", fg="red", bold=True)
-        except ValidationError as e:
+        except exceptions.ValidationError as e:
             for error in e.args[0]:
                 click.secho(error, fg="red", bold=True)
         else:
             click.echo(f"value: {fi.to_human_readable(value)}")
 
-    def inspect(self, delete_stale=False):
+    def inspect(self, args):
+        if args.name:
+            return self.inspect_config(args.name)
         if not self.root_mode:
-            raise PermissionDenied("This operation is allowed in root mode only.")
+            raise exceptions.PermissionDenied("This operation is allowed in root mode only.")
         info = {}
         valid = True
         for field_name, field_instance, section_instance in self.fields:
             try:
                 value = field_instance.get(root=True, default_exception=True, validate=True)
                 flag = "OK"
-            except DefaultUsedException:
+            except exceptions.DefaultUsedException:
                 value = field_instance.default
                 flag = "DEF"
-            except ConfigMissingError:
+            except exceptions.ConfigMissingError:
                 value = ""
                 flag = "MISS"
-            except ValidationError:
+            except exceptions.ValidationError:
                 value = ""
                 flag = "INV"
             if flag in ("OK", "DEF"):
@@ -201,8 +198,8 @@ class Config:
             click.secho(f"    Did not validate due to value errors.", fg="yellow", bold=True)
         click.echo()
 
-        self.stale_list(False, delete_stale)
-        self.stale_list(True, delete_stale)
+        self.stale_list(False, args.delete_stale)
+        self.stale_list(True, args.delete_stale)
 
     def stale_list(self, secret, delete_stale):
         regex = r"([^#^\s^=]+)="
@@ -224,7 +221,7 @@ class Config:
 
         if delete_stale:
             for n in stale:
-                f = ConfigField(secret=secret)
+                f = modfields.ConfigField(secret=secret)
                 f._setup_field(self, n)
                 f.set_root(None)
         else:
@@ -244,7 +241,7 @@ class Config:
     def get(self, name, root=None, to_stdout=False, default=None):
         root = self.root_mode if root is None else root
         if not self.root_mode and root:
-            raise PermissionDenied("This operation is allowed in root mode only.")
+            raise exceptions.PermissionDenied("This operation is allowed in root mode only.")
         try:
             field, _ = self.field_map[name]
         except KeyError:
@@ -257,7 +254,7 @@ class Config:
 
     def set(self, name, value, no_validate=False, from_stdin=False):
         if not self.root_mode:
-            raise PermissionDenied("This operation is allowed in root mode only.")
+            raise exceptions.PermissionDenied("This operation is allowed in root mode only.")
         try:
             field, _ = self.field_map[name]
         except KeyError:
@@ -270,119 +267,16 @@ class Config:
         for name, [field, _] in self.field_map.items():
             field.prepare(service)
 
+    def backup_cmd(self, parser):
+        # TODO: this function should be defined in the conf.py
+        parser.add_argument("--name", "-n")
+
+        def cmd(args):
+            helpers.ask(["a", "b", (3, "c")], prompt="Now what?", marks=[0], default=3)
+
+        return cmd
+
 
 class Section:
     def __init__(self, config):
         self.config = config
-
-
-@click.group()
-def conf():
-    pass
-
-
-@conf.command(name="inspect")
-@click.argument("name", required=False)
-@click.option("--delete-stale", "-d", is_flag=True)
-def inspect_cli(name, delete_stale):
-    try:
-        conf = Config(root_mode=True)
-    except PermissionDenied:
-        raise click.UsageError("Must be root to use this.")
-    if name:
-        conf.inspect_config(name)
-    else:
-        conf.inspect(delete_stale)
-
-
-@conf.command(name="set")
-@click.option("--name", "-n")
-@click.option("--value", "-v")
-@click.option('--no-validate', is_flag=True)
-@click.option('--random', "-r", type=int)
-@click.option("--stdin", "-s", is_flag=True)
-@click.option("--file", "-f", type=click.File(mode="rb"))
-def set_cli(name, value, no_validate, random, stdin, file):
-    try:
-        conf = Config(root_mode=True)
-    except PermissionDenied:
-        raise click.UsageError("Must be root to use this.")
-    numinputoptions = len([o for o in [random, stdin, file] if o])
-    if numinputoptions > 1:
-        raise click.UsageError(
-            "Only one input method can be used: random, stdin or file.",
-        )
-    if not name:
-        # we will ask for the variable, so no stdin allowed
-        if stdin:
-            raise click.BadOptionUsage(
-                "stdin",
-                "If name is not given, we can not read from STDIN.",
-            )
-        # ask for the name
-        name = ask([f[0] for f in conf.fields], prompt="Which config to set?")
-
-    try:
-        field = conf.fieldbyname(name)
-    except KeyError:
-        raise click.ClickException(f"No such config: {name}")
-
-    if value is None:
-        if random:
-            value = ''.join(
-                rnd.choice(
-                    string.ascii_letters + string.digits + string.punctuation
-                ) for _ in range(random)
-            )
-        elif stdin:
-            value = click.get_binary_stream("stdin").read()
-        elif file:
-            value = file.read()
-        else:
-            # value = input("Value: ").encode()
-            value = click.prompt(
-                "Value", hide_input=field.secret, confirmation_prompt=field.secret
-            ).encode()
-    else:
-        value = value.encode()
-
-    try:
-        conf.set(name, value, no_validate=no_validate, from_stdin=True)
-    except ValidationError as e:
-        arg = e.args[0]
-        if isinstance(arg, str):
-            arg = [arg]
-        raise click.ClickException("/n".join([str(v) for v in arg]))
-
-
-@conf.command()
-@click.argument("name", required=False)
-def get(name):
-    config = Config()
-    if name is None:
-        name = ask([f[0] for f in config.fields], prompt="Which config to get?")
-    try:
-        value = config.get(name, to_stdout=True)
-    except KeyError:
-        raise click.ClickException(f"No such config: {name}")
-    except ConfigMissingError:
-        raise click.ClickException("The config is not set and no default specified.")
-    except (FileNotFoundError, PermissionError):
-        raise click.ClickException("Wrong permission or missing file.")
-    click.echo(value, nl=False)
-
-
-@conf.command()
-@click.argument("name")
-def delete(name):
-    try:
-        Config().set(name, None)
-    except KeyError:
-        raise click.ClickException(f"No such config: {name}")
-    except PermissionDenied:
-        raise click.UsageError("Must be root to use this.")
-
-# @conf.command()
-# @click.argument("service")
-# def prepare(service):
-#     Config().prepare(service)

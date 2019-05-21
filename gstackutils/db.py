@@ -1,7 +1,6 @@
 import os
 import time
 import signal
-import sys
 
 import click
 import psycopg2
@@ -90,6 +89,7 @@ def ensure(conf=None, verbose=False):
 
 
 def wait_for_db(timeout=10, conf=None, verbose=False):
+    # print("xxx", verbose)
     def echo(msg):
         if verbose:
             click.echo(f"{msg} ...")
@@ -117,9 +117,9 @@ def wait_for_db(timeout=10, conf=None, verbose=False):
     exitreason = "S"
     start = time.time()
     while not stopped[0]:
-        echo("trying to connect")
+        # echo("trying to connect")
         try:
-            _healthcheck(config)
+            _healthcheck(config, verbose)
         except Exception as e:
             now = time.time()
             if now - start > timeout:
@@ -140,23 +140,3 @@ def wait_for_db(timeout=10, conf=None, verbose=False):
         raise DatabaseNotPresent()
     elif exitreason == "S":
         raise SystemExit()
-
-
-@click.group(name="db")
-def cli():
-    pass
-
-
-@cli.command(name="ensure")
-@click.option('--verbose', "-v", is_flag=True)
-def ensure_cli(verbose):
-    ensure(verbose=verbose)
-
-
-@cli.command(name="wait")
-@click.option("--timeout", "-t", default=10)
-def wait_cli(timeout):
-    try:
-        wait_for_db(timeout=timeout)
-    except DatabaseNotPresent:
-        sys.exit(1)

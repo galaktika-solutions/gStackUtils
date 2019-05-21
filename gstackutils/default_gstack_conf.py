@@ -1,4 +1,5 @@
 import psycopg2
+import sys
 
 from .helpers import pg_pass
 from .config import Section
@@ -8,6 +9,7 @@ from .run import run
 
 
 class POSTGRES(Section):
+    """Passwords for portgresql roles"""
     DB_PASSWORD_POSTGRES = fields.StringConfig(secret=True, min_length=8)
     DB_PASSWORD_DJANGO = fields.StringConfig(
         secret=True, min_length=8, services={"django": ["django"]}
@@ -18,6 +20,7 @@ class POSTGRES(Section):
 
 
 class DJANGO(Section):
+    """Settings used by Django"""
     DJANGO_SECRET_KEY = fields.StringConfig(
         secret=True, min_length=64, services={"django": ["django"]}
     )
@@ -73,12 +76,22 @@ def pg_init(conf):
     ])
 
 
-def healthcheck(conf):
+def healthcheck(conf, verbose=False):
     dbname = "django"
     user = "django"
     password = conf.get("DB_PASSWORD_DJANGO")
     host = "postgres"
-    psycopg2.connect(dbname=dbname, user=user, password=password, host=host)
+    if verbose:
+        print("trying to connect ... ", file=sys.stderr, flush=True, end="")
+    try:
+        psycopg2.connect(dbname=dbname, user=user, password=password, host=host)
+    except Exception as e:
+        if verbose:
+            print(e, file=sys.stderr, flush=True, end="")
+        raise
+    else:
+        if verbose:
+            print("OK", file=sys.stderr, flush=True)
 
 
 def start_postgres(conf):

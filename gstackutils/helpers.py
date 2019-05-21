@@ -122,29 +122,9 @@ def pg_pass(user, password):
 
 
 def ask(
-    options=[], prompt='', default=None, multiple=False, yesno=False,
-    marks=[]
+    options=[], prompt='', default=None, multiple=False, marks=[]
 ):
     """Asks the user to select one (or more) from a list of options."""
-
-    if yesno:
-        if default == 'y':
-            msg = 'Y/n'
-        elif default == 'n':
-            msg = 'y/N'
-        else:
-            msg = 'y/n'
-        while True:
-            click.echo(f'{prompt} [{msg}]: ', nl=False, err=True)
-            i = input()
-            if not i and default:
-                return True if default == 'y' else False
-            if not i:
-                continue
-            if i[0] in 'Yy':
-                return True
-            if i[0] in 'Nn':
-                return False
 
     if not options:
         raise ValueError('Nothing to choose from.')
@@ -179,19 +159,3 @@ def ask(
             return options[int(i)][0]
         except (ValueError, IndexError):
             continue
-
-
-@click.group(name="helpers")
-def cli():
-    pass
-
-
-@cli.command(name="cp")
-@click.argument("source", type=click.Path(exists=True))
-@click.argument("dest", type=click.Path())
-@click.option("--uid", "-u")
-@click.option("--gid", "-g")
-@click.option("--mode", "-m")
-@click.option("-s", "--substitute", is_flag=True)
-def cp_cli(source, dest, uid, gid, mode, substitute):
-    cp(source, dest, -1 if uid is None else uid, -1 if gid is None else gid, mode, substitute)

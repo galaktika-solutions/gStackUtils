@@ -231,7 +231,7 @@ class IntConfig(ConfigField):
         try:
             return int(b)
         except ValueError:
-            raise InvalidValue()
+            raise InvalidValue("should be an integer")
 
     def to_bytes(self, value):
         return str(value).encode()
@@ -266,7 +266,7 @@ class BoolConfig(ConfigField):
             return True
         elif b == b"False":
             return False
-        raise InvalidValue()
+        raise InvalidValue("Should be 'True' or 'False'")
 
     def to_bytes(self, value):
         return b"True" if value else b"False"

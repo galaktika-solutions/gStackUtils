@@ -4,13 +4,17 @@ from .config import Config
 from .exceptions import ServiceNotFound
 
 
-def start(service, conf=None):
+def get_starters(conf=None):
     config = conf or Config()
     if hasattr(config.config_module, "STARTERS"):
-        _starters = config.config_module.STARTERS
+        return config.config_module.STARTERS
     else:
-        _starters = config.default_config_module.STARTERS
-    # config.validate(raise_error=True)
+        return config.default_config_module.STARTERS
+
+
+def start(service, conf=None):
+    config = conf or Config()
+    _starters = get_starters(config)
     try:
         starter = _starters[service]
     except KeyError:

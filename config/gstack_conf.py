@@ -4,6 +4,9 @@ from gstackutils import fields
 from gstackutils.validators import IPValidator, HostNameValidator
 
 
+GSTACK_THEME = "colors"
+
+
 class PYPI_CREDENTIALS(Section):
     """Credentials for https://pypi.org/"""
     PYPI_USERNAME = fields.StringConfig()
@@ -14,7 +17,7 @@ from gstackutils.default_gstack_conf import POSTGRES, DJANGO  # noqa
 
 
 class TESTING(Section):
-    """Definitions for testing purposes only."""
+    """Definitions for testing purposes only"""
     ENVSTRING = fields.StringConfig()
     SECRETSTRING = fields.StringConfig(
         secret=True, min_length=8, help_text="Some secret long enough."

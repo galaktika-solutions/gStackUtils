@@ -1,8 +1,6 @@
 import time
 import os
 
-import click
-
 from .run import run
 from .config import Config
 
@@ -86,21 +84,3 @@ def createcerts(names, ips=None, wd=None, silent=False, conf=None):
     stat = os.stat(".")
     for f in (cert_name + ".crt", cert_name + ".key", ca_name + ".crt"):
         os.chown(os.path.join(wd, f), stat.st_uid, stat.st_gid)
-
-
-@click.command(name="cert")
-@click.option(
-    "--name", "-n", multiple=True,
-    help="Name the generated certificate is valid for."
-)
-@click.option(
-    "--ip", "-i", multiple=True,
-    help="IP address the generated certificate is valid for."
-)
-@click.option('--silent', is_flag=True)
-def cert_cli(name, ip, silent):
-    """Generates certificates for development purposes."""
-
-    if not name:
-        raise click.ClickException("No name given.")
-    createcerts(name, ips=ip, wd=os.getcwd(), silent=silent)

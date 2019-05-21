@@ -4,15 +4,15 @@ import signal
 import sys
 from grp import getgrall as getgroups
 
-import click
-
 from .helpers import passwd, group
 from .exceptions import ImproperlyConfigured
 
 
-def run(cmd, usr=0, grp=None, stopsignal=None, exit=False, silent=False, cwd=None, extraenv={}):
+def run(cmd, usr=None, grp=None, stopsignal=None, exit=False, silent=False, cwd=None, extraenv={}):
     """Run a command."""
 
+    if usr is None:
+        usr = 0
     try:
         pw = passwd(usr)
     except KeyError:
@@ -31,12 +31,12 @@ def run(cmd, usr=0, grp=None, stopsignal=None, exit=False, silent=False, cwd=Non
         except KeyError:
             if isinstance(grp, int):
                 gid, groups = grp, [grp]
-                gr = None
+            else:
+                raise ImproperlyConfigured(f"Group does not exist: {grp}")
         else:
             gid, groups = gr.gr_gid, [gr.gr_gid]
     elif pw:
-        gr = group(pw.pw_gid)
-        gid = gr.gr_gid
+        gid = group(pw.pw_gid).gr_gid
         groups = [g.gr_gid for g in getgroups() if uname in g.gr_mem]
     else:
         # No grp given and no user found
@@ -80,23 +80,3 @@ def run(cmd, usr=0, grp=None, stopsignal=None, exit=False, silent=False, cwd=Non
     if exit:
         sys.exit(returncode)
     return returncode
-
-
-@click.command(name="run")
-@click.option('--user', '-u')
-@click.option('--group', '-g')
-@click.option('--silent', is_flag=True)
-@click.option('--signal', '-s')
-@click.argument("cmd", nargs=-1, required=True)
-def run_cli(user, group, silent, signal, cmd):
-    if user is not None:
-        try:
-            user = int(user)
-        except ValueError:
-            pass
-    if group is not None:
-        try:
-            group = int(group)
-        except ValueError:
-            pass
-    run(cmd, usr=user, grp=group, silent=silent, stopsignal=signal, exit=True)
