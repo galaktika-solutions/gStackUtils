@@ -1,30 +1,15 @@
-class ImproperlyConfigured(Exception):
+class GstackException(Exception):
+    """Base exception for all others."""
     pass
 
 
-class DatabaseNotPresent(Exception):
+class PermissionDenied(GstackException):
+    """Indicates insufficient privileges."""
     pass
 
 
-class ServiceNotFound(Exception):
-    pass
-
-
-class ConfigMissingError(Exception):
-    pass
-
-
-class ValidationError(Exception):
-    pass
-
-
-class DefaultUsedException(Exception):
-    pass
-
-
-class PermissionDenied(Exception):
-    pass
-
-
-class InvalidValue(Exception):
+class ImproperlyConfigured(GstackException):
+    """Raised when the current setup (values, file locations etc.) does not meet
+    one or more requirements.
+    """
     pass

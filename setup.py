@@ -29,7 +29,7 @@ setup(
     packages=["gstackutils"],
     install_requires=[
         "click >= 7.0",
-        "psycopg2-binary >= 2.8",
+        # "psycopg2-binary >= 2.8",
     ],
     extras_require={
         "dev": [
