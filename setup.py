@@ -29,6 +29,9 @@ setup(
     packages=["gstackutils"],
     install_requires=[
         "click >= 7.0",
+        "pick >= 0.6.4",
+        "pyopenssl >= 19.0.0",
+        # "django >= 2.2",
         # "psycopg2-binary >= 2.8",
     ],
     extras_require={

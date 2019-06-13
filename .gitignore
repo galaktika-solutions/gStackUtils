@@ -8,3 +8,4 @@ __pycache__
 /coverage_report
 /dist
 /backup
+/tests/to_delete

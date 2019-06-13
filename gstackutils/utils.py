@@ -3,9 +3,9 @@
 import os
 import pwd
 import grp
-# import shutil
+import shutil
 # import hashlib
-# import re
+import re
 
 # import click
 
@@ -123,49 +123,50 @@ def path_check(path, user=None, group=None, mask=None, fix=False):
             raise exceptions.ImproperlyConfigured(msg)
 
 
-# def cp(source, dest, _uid=-1, _gid=-1, mode=None, substitute=False):
-#     shutil.copyfile(source, dest)
-#     os.chown(dest, uid(_uid), gid(_gid))
-#     if mode is not None:
-#         os.chmod(dest, mode)
-#     if not substitute:
-#         return
-#
-#     with open(dest, "r") as f:
-#         lines = f.readlines()
-#
-#     newlines = []
-#     for l in lines:
-#         newline = l
-#         skipline = False
-#         for pattern in re.findall(r"\{\{.+\}\}", l):
-#             # not defined: default
-#             m = re.fullmatch(r"\{\{\s*([^-\s|]+)\s*\|\s*(.*?)\s*\}\}", pattern)
-#             if m:
-#                 repl = os.environ.get(m.group(1))
-#                 repl = repl if repl is not None else m.group(2)
-#                 newline = newline.replace(pattern, repl)
-#             # not defined: remove line
-#             m = re.fullmatch(r"\{\{\s*([^-\s|]+)\s*-\s*\}\}", pattern)
-#             if m:
-#                 repl = os.environ.get(m.group(1))
-#                 if repl is None:
-#                     skipline = True
-#                     continue
-#                 newline = newline.replace(pattern, repl)
-#             # not defined: delete
-#             m = re.fullmatch(r"\{\{\s*([^-\s|]+)\s*\}\}", pattern)
-#             if m:
-#                 repl = os.environ.get(m.group(1))
-#                 repl = repl if repl is not None else ""
-#                 newline = newline.replace(pattern, repl)
-#         if not skipline:
-#             newlines.append(newline)
-#
-#     with open(dest, "w") as f:
-#         f.writelines(newlines)
-#
-#
+def cp(source, dest, substitute=False, env={}):
+    shutil.copyfile(source, dest)
+    if not substitute:
+        return
+
+    _env = os.environ.copy()
+    _env.update(env)
+    env = _env
+
+    with open(dest, "r") as f:
+        lines = f.readlines()
+
+    newlines = []
+    for l in lines:
+        newline = l
+        skipline = False
+        for pattern in re.findall(r"\{\{.+?\}\}", l):
+            # not defined: default
+            m = re.fullmatch(r"\{\{\s*([^-\s|]+)\s*\|\s*(.*?)\s*\}\}", pattern)
+            if m:
+                repl = env.get(m.group(1))
+                repl = repl if repl is not None else m.group(2)
+                newline = newline.replace(pattern, repl)
+            # not defined: remove line
+            m = re.fullmatch(r"\{\{\s*([^-\s|]+)\s*-\s*\}\}", pattern)
+            if m:
+                repl = env.get(m.group(1))
+                if repl is None:
+                    skipline = True
+                    continue
+                newline = newline.replace(pattern, repl)
+            # not defined: delete
+            m = re.fullmatch(r"\{\{\s*([^-\s|]+)\s*\}\}", pattern)
+            if m:
+                repl = env.get(m.group(1))
+                repl = repl if repl is not None else ""
+                newline = newline.replace(pattern, repl)
+        if not skipline:
+            newlines.append(newline)
+
+    with open(dest, "w") as f:
+        f.writelines(newlines)
+
+
 # def md5(s):
 #     return hashlib.md5(s.encode()).hexdigest()
 #
