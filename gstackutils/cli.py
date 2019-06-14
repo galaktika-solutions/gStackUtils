@@ -242,23 +242,6 @@ def cli():
 #     wait_parser.add_argument("--timeout", "-t", type=int, default=10)
 #     wait_parser.add_argument("--verbose", "-v", action="store_true")
 #
-#     ##################
-#     # command `cert` #
-#     ##################
-#     cert_parser = main_command.add_parser("cert", help="create certificates for development")
-#     cert_parser.add_argument(
-#         "--name", "-n",
-#         help="name the generated certificate is valid for",
-#         action="append", required=True,
-#     )
-#     cert_parser.add_argument(
-#         "--ip", "-i",
-#         help="IP address the generated certificate is valid for",
-#         action="append"
-#     )
-#     cert_parser.add_argument("--silent", "-s", action="store_true")
-#
-#
 #     ###################
 #     # command `start` #
 #     ###################

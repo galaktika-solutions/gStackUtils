@@ -1,7 +1,12 @@
 import base64
+from email import utils as email_utils
+import datetime
+
+from OpenSSL import crypto, SSL
 
 from . import exceptions
 from . import validators
+from . import cert
 
 
 class Field:
@@ -97,6 +102,27 @@ class ShowStreamOrMaskMixin:
         return self.to_stream(value)
 
 
+class ListMixin:
+    def __init__(self, *args, separator=",", **kwargs):
+        assert not self.binary, "ListMixin can not be used on a binary field."
+        self.separator = separator
+        super(ListMixin, self).__init__(*args, **kwargs)
+
+    def validate(self, value):
+        errors = []
+        for v in value:
+            try:
+                super().validate(v)
+            except exceptions.ValidationError as e:
+                errors += e.error_list
+
+    def from_stream(self, s):
+        return [super(ListMixin, self).from_stream(e) for e in s.split(self.separator)]
+
+    def to_stream(self, value):
+        return self.separator.join([super(ListMixin, self).to_stream(e) for e in value])
+
+
 class StringField(MaxMinLengthMixin, ShowStreamOrMaskMixin, Field):
     def from_stream(self, s):
         return s
@@ -106,10 +132,10 @@ class StringField(MaxMinLengthMixin, ShowStreamOrMaskMixin, Field):
 
 
 class IntegerField(ShowStreamOrMaskMixin, Field):
-    def __init__(self, *, max_value=None, min_value=None, **kwargs):
+    def __init__(self, *args, max_value=None, min_value=None, **kwargs):
         self.max_value = max_value
         self.min_value = min_value
-        super().__init__(**kwargs)
+        super().__init__(*args, **kwargs)
         if min_value is not None:
             self.validators.append(validators.MinValueValidator(int(min_value)))
         if max_value is not None:
@@ -120,6 +146,10 @@ class IntegerField(ShowStreamOrMaskMixin, Field):
 
     def to_stream(self, value):
         return str(value)
+
+
+class IntegerListField(ListMixin, IntegerField):
+    pass
 
 
 class BooleanField(ShowStreamOrMaskMixin, Field):
@@ -141,3 +171,51 @@ class FileField(MaxMinLengthMixin, Field):
 
     def reportable(self, value):
         return f"File of size {len(value)} bytes"
+
+
+class EmailField(ShowStreamOrMaskMixin, Field):
+    default_validators = [validators.EmailValidator()]
+
+    def from_stream(self, s):
+        return email_utils.parseaddr(s)
+
+    def to_stream(self, value):
+        if value[0]:
+            return f"{value[0]} <{value[1]}>"
+        return value[1]
+
+
+class SSLPrivateKeyField(Field):
+    binary = True
+
+    def __init__(self, *args, **kwargs):
+        if "secret" in kwargs:
+            raise exceptions.InvalidUsage("RSAPrivateKey must always be a secret.")
+        kwargs["secret"] = True
+        super().__init__(*args, **kwargs)
+
+    def from_stream(self, b):
+        return crypto.load_privatekey(SSL.FILETYPE_PEM, b)
+
+    def to_stream(self, value):
+        return crypto.dump_privatekey(SSL.FILETYPE_PEM, value)
+
+    def reportable(self, value):
+        return f"RSA private key, bitsize: {value.bits()}"
+
+
+class SSLCertificateField(Field):
+    binary = True
+
+    def from_stream(self, b):
+        cert = crypto.load_certificate(SSL.FILETYPE_PEM, b)
+        return cert
+
+    def to_stream(self, value):
+        return crypto.dump_certificate(SSL.FILETYPE_PEM, value)
+
+    def reportable(self, value):
+        exp = datetime.datetime.strptime(value.get_notAfter().decode(), "%Y%m%d%H%M%SZ")
+        sanlist = cert.get_alt_names(value)
+        simplelist = ", ".join([x[1] for x in sanlist])
+        return f"certificate for {simplelist}; valid until {exp} UTC"

@@ -8,12 +8,12 @@ GSTACK_SECRET_FILE = "tests/to_delete/.secret.env"
 GSTACK_SECRET_DIR = "tests/to_delete/"
 
 
-class PYPI_CREDENTIALS(conf.Section):
-    PYPI_USERNAME = fields.StringField()
-    PYPI_PASSWORD = fields.StringField(secret=True, min_length=12)
+class CREDENTIALS(conf.Section):
+    USERNAME = fields.StringField()
+    PASSWORD = fields.StringField(secret=True, min_length=12)
 
     dummy = conf.Service(
-        PYPI_PASSWORD={"uid": 999, "gid": "postgres", "mode": 0o600},
+        PASSWORD={"uid": 999, "gid": "postgres", "mode": 0o600},
     )
 
 
@@ -28,5 +28,9 @@ class TESTING(conf.Section):
     SECRET = fields.StringField(secret=True)
     INTEGER = fields.IntegerField()
     BOOLEAN = fields.BooleanField()
+    INTLIST = fields.IntegerListField()
+    EMAIL = fields.EmailField()
+    PRIVATEKEY = fields.SSLPrivateKeyField()
+    CERTIFICATE = fields.SSLCertificateField()
 
-    dummy = conf.Service(SECRET=0)
+    dummy = conf.Service(SECRET=0, PRIVATEKEY=0)

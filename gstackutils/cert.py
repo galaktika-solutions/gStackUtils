@@ -1,13 +1,45 @@
 import random
 import os
 
-from OpenSSL import crypto
-from OpenSSL.SSL import FILETYPE_PEM
+from OpenSSL import crypto, SSL
+import cryptography
+import ssl
+
 
 from . import exceptions
 
 
 CERT_NOT_AFTER = 3 * 365 * 24 * 60 * 60
+
+
+def consistent(key, cert):
+    keypub = key.to_cryptography_key().public_key().public_numbers()
+    certpub = cert.get_pubkey().to_cryptography_key().public_numbers()
+    if keypub != certpub:
+        return False
+    return True
+
+
+def get_alt_names(cert):
+    crypt = cert.to_cryptography()
+    sanlist = []
+    for e in crypt.extensions:
+        if isinstance(e.value, cryptography.x509.SubjectAlternativeName):
+            for gn in e.value:
+                if isinstance(gn, cryptography.x509.DNSName):
+                    sanlist.append(("DNS", gn.value))
+                elif isinstance(gn, cryptography.x509.IPAddress):
+                    sanlist.append(("IP Address", str(gn.value)))
+    return sanlist
+
+
+def valid_for_name(cert):
+    sanlist = get_alt_names(cert)
+    try:
+        ssl.match_hostname({"subjectAltName": sanlist}, "127.0.0.1")
+    except ssl.CertificateError:
+        return False
+    return True
 
 
 def make_cert(certname):
@@ -32,17 +64,17 @@ def generate(names, ips=None, cakeyfile=None, cacertfile=None):
     if cakeyfile:
         with open(cakeyfile, "rb") as f:
             buf = f.read()
-            cakey = crypto.load_privatekey(FILETYPE_PEM, buf)
+            cakey = crypto.load_privatekey(SSL.FILETYPE_PEM, buf)
     else:
         cakey = crypto.PKey()
         cakey.generate_key(crypto.TYPE_RSA, 2048)
         with open(f"{cn}_CA.key", "wb") as f:
-            f.write(crypto.dump_privatekey(FILETYPE_PEM, cakey))
+            f.write(crypto.dump_privatekey(SSL.FILETYPE_PEM, cakey))
 
     if cacertfile:
         with open(cacertfile, "rb") as f:
             buf = f.read()
-            cacert = crypto.load_certificate(FILETYPE_PEM, buf)
+            cacert = crypto.load_certificate(SSL.FILETYPE_PEM, buf)
     else:
         cacert = make_cert(f"{cn}_CA")
         cacert.set_issuer(cacert.get_subject())
@@ -54,17 +86,15 @@ def generate(names, ips=None, cakeyfile=None, cacertfile=None):
         ])
         cacert.sign(cakey, "sha256")
         with open(f"{cn}_CA.crt", "wb") as f:
-            f.write(crypto.dump_certificate(FILETYPE_PEM, cacert))
+            f.write(crypto.dump_certificate(SSL.FILETYPE_PEM, cacert))
 
-    cakeypub = cakey.to_cryptography_key().public_key().public_numbers()
-    cacertpub = cacert.get_pubkey().to_cryptography_key().public_numbers()
-    if cakeypub != cacertpub:
-        raise exceptions.InvalidUsage()
+    if not consistent(cakey, cacert):
+        raise exceptions.InvalidUsage("the CA private key and the certificate are not consistent")
 
     key = crypto.PKey()
     key.generate_key(crypto.TYPE_RSA, 2048)
     with open(f"{cn}.key", "wb") as f:
-        f.write(crypto.dump_privatekey(FILETYPE_PEM, key))
+        f.write(crypto.dump_privatekey(SSL.FILETYPE_PEM, key))
 
     req = crypto.X509Req()
     req.get_subject().CN = cn
@@ -83,4 +113,4 @@ def generate(names, ips=None, cakeyfile=None, cacertfile=None):
     ])
     cert.sign(cakey, "sha256")
     with open(f"{cn}.crt", "wb") as f:
-        f.write(crypto.dump_certificate(FILETYPE_PEM, cert))
+        f.write(crypto.dump_certificate(SSL.FILETYPE_PEM, cert))

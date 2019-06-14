@@ -296,7 +296,7 @@ class Config:
         stale = self.stale(True)
         if stale:
             click.echo()
-            click.echo("Stale secret config:")
+            click.echo("Stale secret config:", fg="yellow", bold=True)
             for n in stale:
                 click.secho(f"    {n}", fg="red", bold=True)
 
