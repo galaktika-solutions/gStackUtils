@@ -23,6 +23,18 @@ VARIABLES = {
 }
 
 
+class Command:
+    def __init__(self, parser):
+        self.parser = parser
+        self.arguments(parser)
+
+    def arguments(self, parser):
+        pass
+
+    def cmd(self, args):
+        pass
+
+
 class Section:
     def __init__(self, config):
         self.config = config
@@ -250,7 +262,7 @@ class Config:
             click.echo()
 
         info = {}
-        # valid = True
+        valid = True
         for field_name, field_instance, section_instance in self.fields:
             try:
                 value = self.get(field_name, default_exception=True, validate=True)
@@ -261,13 +273,13 @@ class Config:
             except exceptions.ConfigMissingError:
                 value = ""
                 flag = "MISS"
+                valid = False
             except exceptions.ValidationError as e:
                 value = e.messages
                 flag = "INV"
+                valid = False
             if flag in ("OK", "DEF"):
                 value = field_instance.reportable(value)
-            # else:
-            #     valid = False
             section_list = info.setdefault(section_instance, [])
             section_list.append((field_name, FLAGS[flag], value))
 
@@ -287,6 +299,16 @@ class Config:
                     for message in f[2][1:]:
                         click.echo(f"    {'':>{max_name}} {'':>1} {message}")
 
+        if valid and hasattr(self.config_module, "validate"):
+            try:
+                getattr(self.config_module, "validate")(self)
+            except exceptions.ValidationError as e:
+                click.secho("Validation errors:", fg="red", bold=True)
+                for msg in e.messages:
+                    click.echo(f"    {msg}")
+            else:
+                click.secho("Validation OK", fg="green", bold=True)
+
         stale = self.stale(False)
         if stale:
             click.echo()
@@ -296,7 +318,7 @@ class Config:
         stale = self.stale(True)
         if stale:
             click.echo()
-            click.echo("Stale secret config:", fg="yellow", bold=True)
+            click.secho("Stale secret config:", fg="yellow", bold=True)
             for n in stale:
                 click.secho(f"    {n}", fg="red", bold=True)
 

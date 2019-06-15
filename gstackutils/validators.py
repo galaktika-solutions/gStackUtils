@@ -1,8 +1,10 @@
 # import subprocess
 # import os
 import re
+import datetime
 
 from . import exceptions
+from . import cert
 
 
 class MinLengthValidator:
@@ -66,7 +68,7 @@ class HostNameValidator:
     def __init__(self, ip_ok=False):
         self.ip_ok = ip_ok
 
-    def __call__(self, field, value):
+    def __call__(self, value):
         m = re.match(self.host_re, value)
         if not m:
             if self.ip_ok:
@@ -89,7 +91,7 @@ class IPValidator:
         if range:
             self.ip_re = self.ip_re[:-1] + r"/(.+)$"
 
-    def __call__(self, field, value):
+    def __call__(self, value):
         m = re.match(self.ip_re, value)
         if not m:
             raise exceptions.ValidationError(f"invalid IP{' range' if self.range else ''}")
@@ -151,3 +153,9 @@ class EmailValidator:
         msg = "invalid e-mail address"
         if not re.match(self.VALID_ADDRESS_REGEXP, value[1]):
             raise exceptions.ValidationError(msg)
+
+
+class CertificateExpiryValidator:
+    def __call__(self, value):
+        if cert.expiry(value) < datetime.datetime.utcnow():
+            raise exceptions.ValidationError("certificate expired")

@@ -1,5 +1,6 @@
 import random
 import os
+import datetime
 
 from OpenSSL import crypto, SSL
 import cryptography
@@ -40,6 +41,10 @@ def valid_for_name(cert):
     except ssl.CertificateError:
         return False
     return True
+
+
+def expiry(cert):
+    return datetime.datetime.strptime(cert.get_notAfter().decode(), "%Y%m%d%H%M%SZ")
 
 
 def make_cert(certname):

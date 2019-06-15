@@ -1,6 +1,5 @@
 import base64
 from email import utils as email_utils
-import datetime
 
 from OpenSSL import crypto, SSL
 
@@ -206,6 +205,7 @@ class SSLPrivateKeyField(Field):
 
 class SSLCertificateField(Field):
     binary = True
+    default_validators = [validators.CertificateExpiryValidator()]
 
     def from_stream(self, b):
         cert = crypto.load_certificate(SSL.FILETYPE_PEM, b)
@@ -215,7 +215,6 @@ class SSLCertificateField(Field):
         return crypto.dump_certificate(SSL.FILETYPE_PEM, value)
 
     def reportable(self, value):
-        exp = datetime.datetime.strptime(value.get_notAfter().decode(), "%Y%m%d%H%M%SZ")
         sanlist = cert.get_alt_names(value)
         simplelist = ", ".join([x[1] for x in sanlist])
-        return f"certificate for {simplelist}; valid until {exp} UTC"
+        return f"certificate for {simplelist}; valid until {cert.expiry(value)} UTC"

@@ -3,11 +3,8 @@ import sys
 import random
 import string
 import signal
+import inspect
 
-# import click
-# import pick
-
-# from . import config, helpers, exceptions, db, validators, cert, run, start
 from . import conf
 from . import exceptions
 from . import run
@@ -19,24 +16,13 @@ from . import cert
 #         db.ensure(args.conf, args.verbose)
 #     except exceptions.ImproperlyConfigured as e:
 #         parser.error(e)
-#
-#
+
+
 # def db_wait(args, parser):
 #     try:
 #         db.wait_for_db(args.timeout, args.conf, args.verbose)
 #     except exceptions.DatabaseNotPresent:
 #         sys.exit(1)
-#
-#
-# def cert_cmd(args, parser):
-#     if args.ip:
-#         ip_validator = validators.IPValidator()
-#         for ip in args.ip:
-#             try:
-#                 ip_validator(None, ip)
-#             except exceptions.ValidationError as e:
-#                 parser.error(e)
-#     cert.createcerts(args.name, ips=args.ip, wd=os.getcwd(), silent=args.silent, conf=args.conf)
 
 
 # def start_cmd(args, parser):
@@ -52,8 +38,8 @@ from . import cert
 def conf_command(parser):
     def inspect_command(parser):
         def cmd(args):
-            config = conf.Config(args.config_module)
-            config.inspect(develop=args.develop)
+            # config = conf.Config(args.config_module)
+            args.config.inspect(develop=args.develop)
 
         parser.set_defaults(func=cmd)
         parser.add_argument(
@@ -64,7 +50,7 @@ def conf_command(parser):
 
     def set_command(parser):
         def cmd(args):
-            config = conf.Config(args.config_module)
+            config = args.config
             if not config.root_mode:
                 parser.error("must be root to set config")
             try:
@@ -110,7 +96,7 @@ def conf_command(parser):
 
     def get_command(parser):
         def cmd(args):
-            config = conf.Config(args.config_module)
+            config = args.config
             try:
                 stream = config.get(args.name, stream=True)
             except KeyError:
@@ -126,7 +112,7 @@ def conf_command(parser):
 
     def del_command(parser):
         def cmd(args):
-            config = conf.Config(args.config_module)
+            config = args.config
             try:
                 config.set(args.name, None)
             except KeyError:
@@ -138,7 +124,7 @@ def conf_command(parser):
 
     def delstale_command(parser):
         def cmd(args):
-            config = conf.Config(args.config_module)
+            config = args.config
             config.delete_stale()
 
         parser.set_defaults(func=cmd)
@@ -210,8 +196,15 @@ def cert_command(parser):
 
 
 def cli():
+    preparser = argparse.ArgumentParser(prog="gstack", add_help=False)
+    preparser.add_argument("--config-module", "-m", help="the config module")
+    args = preparser.parse_known_args()[0]
+    config = conf.Config(args.config_module)
+
     parser = argparse.ArgumentParser(prog="gstack")
     parser.add_argument("--config-module", "-m", help="the config module")
+    parser.set_defaults(config=config)
+
     subcommands = parser.add_subparsers(title="commands")
 
     conf_parser = subcommands.add_parser("conf", help="configuration system")
@@ -220,6 +213,17 @@ def cli():
     run_command(run_parser)
     cert_parser = subcommands.add_parser("cert", help="generate certificates for development")
     cert_command(cert_parser)
+
+    for k, v in inspect.getmembers(
+        config.config_module,
+        lambda x: (inspect.isclass(x) and issubclass(x, conf.Command))
+    ):
+        cmd_name = k.lower().replace("_", "-")
+        help = inspect.getdoc(v)
+        extra_parser = subcommands.add_parser(cmd_name, help=help)
+        inst = v(extra_parser)
+        extra_parser.set_defaults(func=inst.cmd)
+
 
 #     ################
 #     # command `db` #

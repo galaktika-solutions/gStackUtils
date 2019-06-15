@@ -1,6 +1,8 @@
 from gstackutils import conf
 from gstackutils import fields
 from gstackutils import validators
+from gstackutils import cert
+from gstackutils import exceptions
 
 
 GSTACK_ENV_FILE = "tests/to_delete/.env"
@@ -32,5 +34,21 @@ class TESTING(conf.Section):
     EMAIL = fields.EmailField()
     PRIVATEKEY = fields.SSLPrivateKeyField()
     CERTIFICATE = fields.SSLCertificateField()
+    HOST_NAME = fields.StringField(validators=[validators.HostNameValidator(ip_ok=True)])
 
     dummy = conf.Service(SECRET=0, PRIVATEKEY=0)
+
+
+def validate(config):
+    if not cert.consistent(config.get("PRIVATEKEY"), config.get("CERTIFICATE")):
+        raise exceptions.ValidationError("PRIVATEKEY and CERTIFICATE are inconsistent")
+
+
+class Dummy_print(conf.Command):
+    "a dummy command"
+
+    def arguments(self, parser):
+        parser.add_argument("-x")
+
+    def cmd(self, args):
+        print(f"x is {args.x}")
