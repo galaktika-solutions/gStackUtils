@@ -4,10 +4,7 @@ import os
 import pwd
 import grp
 import shutil
-# import hashlib
 import re
-
-# import click
 
 from . import exceptions
 
@@ -71,7 +68,10 @@ def path_check(path, user=None, group=None, mask=None, fix=False, strict_mode=Fa
 
     if not isdir and not os.path.isfile(path):
         if fix:
-            open(path, "w").close()
+            try:
+                open(path, "w").close()
+            except FileNotFoundError as e:
+                raise exceptions.ImproperlyConfigured(f"Could not create file: {path}")
             user = user or 0  # when created, we can not leave as is...
             group = group or 0
             mask = mask or 0o600
@@ -169,14 +169,6 @@ def cp(source, dest, substitute=False, env={}):
         f.writelines(newlines)
 
 
-# def md5(s):
-#     return hashlib.md5(s.encode()).hexdigest()
-#
-#
-# def pg_pass(user, password):
-#     return f"md5{md5(password + user)}"
-#
-#
 # def ask(
 #     options=[], prompt='', default=None, multiple=False, marks=[]
 # ):

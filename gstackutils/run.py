@@ -2,10 +2,10 @@ import os
 import subprocess
 import signal
 import sys
-from grp import getgrall as getgroups
+# from grp import getgrall as getgroups
 
 from . import utils
-from . import exceptions
+# from . import exceptions
 
 
 def run(
@@ -19,31 +19,33 @@ def run(
 ):
     """Run a command."""
     usr = usr if usr is not None else 0
+    uid = utils.uid(usr)
     grp = grp if grp is not None else usr
+    gid = utils.gid(grp)
 
-    try:
-        pw = utils.uid(usr, all=True)
-    except KeyError:
-        raise exceptions.ImproperlyConfigured(f"User does not exist: {usr}")
-    uid, uname, homedir = pw.pw_uid, pw.pw_name, pw.pw_dir
-
-    try:
-        gr = utils.gid(grp, all=True)
-    except KeyError:
-        raise exceptions.ImproperlyConfigured(f"Group does not exist: {grp}")
-    gid = gr.gr_gid
-    groups = [g.gr_gid for g in getgroups() if uname in g.gr_mem]
+    # try:
+    #     pw = utils.uid(usr, all=True)
+    # except KeyError:
+    #     raise exceptions.ImproperlyConfigured(f"User does not exist: {usr}")
+    # uid, uname, homedir = pw.pw_uid, pw.pw_name, pw.pw_dir
+    #
+    # try:
+    #     gr = utils.gid(grp, all=True)
+    # except KeyError:
+    #     raise exceptions.ImproperlyConfigured(f"Group does not exist: {grp}")
+    # gid = gr.gr_gid
+    # groups = [g.gr_gid for g in getgroups() if uname in g.gr_mem]
 
     def preexec_fn():  # pragma: no cover
-        os.setgroups(groups)
+        # os.setgroups(groups)
         os.setgid(gid)
         os.setuid(uid)
 
     env = os.environ.copy()
-    env["USER"] = env["USERNAME"] = uname
-    env["HOME"] = homedir
-    env["UID"] = str(uid)
-    env["GID"] = str(gid)
+    # env["USER"] = env["USERNAME"] = uname
+    # env["HOME"] = homedir
+    # env["UID"] = str(uid)
+    # env["GID"] = str(gid)
     env.update(extraenv)
 
     sig = getattr(signal, stopsignal) if stopsignal else None

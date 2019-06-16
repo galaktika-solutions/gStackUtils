@@ -4,7 +4,6 @@ import os
 
 from . import CleanTestCase
 from gstackutils import run
-from gstackutils import exceptions
 
 
 class TestRun(CleanTestCase):
@@ -22,9 +21,9 @@ class TestRun(CleanTestCase):
         self.assertEqual(stat.st_gid, 999)
 
     def test_no_user(self):
-        with self.assertRaises(exceptions.ImproperlyConfigured):
-            run.run(["id"], usr=1000)
+        with self.assertRaises(KeyError):
+            run.run(["id"], usr="foo")
 
     def test_no_group(self):
-        with self.assertRaises(exceptions.ImproperlyConfigured):
-            run.run(["id"], grp=1000)
+        with self.assertRaises(KeyError):
+            run.run(["id"], grp="foo")

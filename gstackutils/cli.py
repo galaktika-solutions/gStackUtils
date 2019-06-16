@@ -180,7 +180,7 @@ def run_command(parser):
                 silent=args.silent, stopsignal=args.signal,
                 exit=True
             )
-        except exceptions.ImproperlyConfigured as e:
+        except Exception as e:
             parser.error(e)
 
     parser.set_defaults(func=cmd)
