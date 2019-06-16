@@ -34,10 +34,10 @@ def get_alt_names(cert):
     return sanlist
 
 
-def valid_for_name(cert):
+def valid_for_name(name, cert):
     sanlist = get_alt_names(cert)
     try:
-        ssl.match_hostname({"subjectAltName": sanlist}, "127.0.0.1")
+        ssl.match_hostname({"subjectAltName": sanlist}, name)
     except ssl.CertificateError:
         return False
     return True

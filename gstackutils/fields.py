@@ -35,7 +35,10 @@ class Field:
             raise ValueError("`from_stream` got wrong argument, should be bytes.")
         if not self.binary and not isinstance(bytes_or_str, str):
             raise ValueError("`from_stream` got wrong argument, should be str.")
-        return self.from_stream(bytes_or_str)
+        try:
+            return self.from_stream(bytes_or_str)
+        except Exception:
+            raise ValueError("invalid stream representation")
 
     def _to_stream(self, value):
         val = self.to_stream(value)
@@ -64,10 +67,17 @@ class Field:
         if not self.b64:
             return self._from_stream(storage_str)
 
-        stream = base64.b64decode(storage_str)
+        try:
+            stream = base64.b64decode(storage_str)
+        except Exception:
+            raise ValueError("invalid storeage representation")
         if self.binary:
             return self._from_stream(stream)
-        return self._from_stream(stream.decode())
+        try:
+            decoded = stream.decode()
+        except Exception:
+            raise ValueError("invalid storeage representation")
+        return self._from_stream(decoded)
 
     def validate(self, value):
         errors = []

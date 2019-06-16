@@ -49,7 +49,7 @@ def gid(spec, all=False):
     return _uidgid(spec, all, grp.getgrgid, grp.getgrnam, "gr_gid")
 
 
-def path_check(path, user=None, group=None, mask=None, fix=False):
+def path_check(path, user=None, group=None, mask=None, fix=False, strict_mode=False):
     """Check the existence, ownership and permissions of a file or directory.
     If the check fails it either fixes it or raises
     :exc:`gstackutils.exceptions.ImproperlyConfigured`.
@@ -63,6 +63,7 @@ def path_check(path, user=None, group=None, mask=None, fix=False):
     :param fix:   If ``True``, possible errors will be fixed by creating the file/directory,
                   modify it's owner/group and mode. if not run as root,
                   :exc:`gstackutils.exceptions.PermissionDenied` will be raised.
+    :param strict_mode: It ``True`` mask will not restrict the permissions but set as is.
     """
     if fix and not os.getuid() == 0:
         raise exceptions.PermissionDenied("Only root can fix/create files and directories.")
@@ -111,14 +112,15 @@ def path_check(path, user=None, group=None, mask=None, fix=False):
                 )
                 raise exceptions.ImproperlyConfigured(msg)
 
-    if mask is not None and (stat.st_mode & 0o777 & ~ mask):
+    st_mode = 0o777 if strict_mode else stat.st_mode
+    if mask is not None and (st_mode & 0o777 & ~ mask):
         if fix:
-            os.chmod(path, stat.st_mode & mask)
+            os.chmod(path, st_mode & mask)
         else:
             msg = (
                 f"The {'directory' if isdir else 'file'} {path} "
                 f"has wrong permissions: {oct(stat.st_mode & 0o777)} "
-                f"(should be {oct(stat.st_mode & mask)})."
+                f"(should be {oct(st_mode & mask)})."
             )
             raise exceptions.ImproperlyConfigured(msg)
 

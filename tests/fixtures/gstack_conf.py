@@ -36,12 +36,18 @@ class TESTING(conf.Section):
     CERTIFICATE = fields.SSLCertificateField()
     HOST_NAME = fields.StringField(validators=[validators.HostNameValidator(ip_ok=True)])
 
-    dummy = conf.Service(SECRET=0, PRIVATEKEY=0)
+    dummy = conf.Service(SECRET=0, PRIVATEKEY=[0, 0])
 
 
 def validate(config):
-    if not cert.consistent(config.get("PRIVATEKEY"), config.get("CERTIFICATE")):
+    hostname = config.get("HOST_NAME")
+    privatekey = config.get("PRIVATEKEY")
+    certificate = config.get("CERTIFICATE")
+
+    if not cert.consistent(privatekey, certificate):
         raise exceptions.ValidationError("PRIVATEKEY and CERTIFICATE are inconsistent")
+    if not cert.valid_for_name(hostname, certificate):
+        raise exceptions.ValidationError(f"CERTIFICATE is not valid for {hostname}")
 
 
 class Dummy_print(conf.Command):

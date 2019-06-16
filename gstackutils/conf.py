@@ -152,7 +152,7 @@ class Config:
                 if env is not None:
                     return fi.from_storage(env)
             else:
-                fn = os.path.join(self.GSTACK_SECRET_DIR, self.name)
+                fn = os.path.join(self.GSTACK_SECRET_DIR, name)
                 mode = "rb" if fi.binary else "r"
                 try:
                     with open(fn, mode) as f:
@@ -249,9 +249,29 @@ class Config:
         for secret_field in [n for n, i in section_fields if i.secret]:
             if secret_field not in service_fields:
                 raise exceptions.ImproperlyConfigured(
-                    f"Secret field `{secret_field}` is section `{section_name}` is "
+                    f"Secret field `{secret_field}` in section `{section_name}` is "
                     "not used by any service."
                 )
+
+    def validate(self):
+        self._root_mode_needed()
+        errors = {}
+        for field_name, field_instance, section_instance in self.fields:
+            try:
+                self.get(field_name, validate=True)
+            except exceptions.ValidationError as e:
+                errors.setdefault(field_name, []).append(e)
+            except ValueError as e:
+                errors.setdefault(field_name, []).append(
+                    exceptions.ValidationError(str(e))
+                )
+        if not errors and hasattr(self.config_module, "validate"):
+            try:
+                getattr(self.config_module, "validate")(self)
+            except exceptions.ValidationError as e:
+                errors[exceptions.NON_FIELD_ERRORS] = e.error_list
+        if errors:
+            raise exceptions.ValidationError(errors)
 
     def inspect(self, develop=False):
         self._root_mode_needed()
@@ -276,6 +296,10 @@ class Config:
                 valid = False
             except exceptions.ValidationError as e:
                 value = e.messages
+                flag = "INV"
+                valid = False
+            except ValueError as e:
+                value = str(e)
                 flag = "INV"
                 valid = False
             if flag in ("OK", "DEF"):
@@ -347,3 +371,17 @@ class Config:
                     except KeyError:
                         stale.append(confname)
         return stale
+
+    def prepare(self, service):
+        self._root_mode_needed()
+        for si in [x[1] for x in self.services if x[0] == service]:
+            for field_name, ugm in si.fields.items():
+                fi = self.get_field(field_name)
+                fn = os.path.join(self.GSTACK_SECRET_DIR, field_name)
+                mode = "wb" if fi.binary else "w"
+                with open(fn, mode) as f:
+                    f.write(self.get(field_name, stream=True))
+                utils.path_check(
+                    fn, user=ugm["uid"], group=ugm["gid"], mask=ugm["mode"],
+                    fix=True, strict_mode=True
+                )

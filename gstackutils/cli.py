@@ -79,7 +79,7 @@ def conf_command(parser):
 
             try:
                 config.set(args.name, value, stream=True)
-            except exceptions.ValidationError as e:
+            except (exceptions.ValidationError, ValueError) as e:
                 parser.error(e)
 
         parser.set_defaults(func=cmd)
@@ -102,6 +102,9 @@ def conf_command(parser):
             except KeyError:
                 config.inspect()
                 parser.error(f"no such config: {args.name}")
+            except ValueError as e:
+                parser.error(e)
+
             if isinstance(stream, bytes):
                 sys.stdout.buffer.write(stream)
             else:
@@ -129,6 +132,23 @@ def conf_command(parser):
 
         parser.set_defaults(func=cmd)
 
+    def validate_command(parser):
+        def cmd(args):
+            config = args.config
+            config.validate()
+
+        parser.set_defaults(func=cmd)
+
+    def prepare_command(parser):
+        def cmd(args):
+            try:
+                args.config.prepare(args.service)
+            except ValueError as e:
+                parser.error(e)
+
+        parser.add_argument("service", help="the service to prepare the secrets for")
+        parser.set_defaults(func=cmd)
+
     subcommands = parser.add_subparsers(title="conf commands")
 
     inspect_parser = subcommands.add_parser("inspect", help="inspect config")
@@ -141,6 +161,10 @@ def conf_command(parser):
     del_command(del_parser)
     delstale_parser = subcommands.add_parser("delete-stale", help="delete stale config")
     delstale_command(delstale_parser)
+    validate_parser = subcommands.add_parser("validate", help="validate config")
+    validate_command(validate_parser)
+    prepare_parser = subcommands.add_parser("prepare", help="prepare secrets for application usage")
+    prepare_command(prepare_parser)
 
 
 def run_command(parser):
@@ -199,7 +223,11 @@ def cli():
     preparser = argparse.ArgumentParser(prog="gstack", add_help=False)
     preparser.add_argument("--config-module", "-m", help="the config module")
     args = preparser.parse_known_args()[0]
-    config = conf.Config(args.config_module)
+
+    try:
+        config = conf.Config(args.config_module)
+    except exceptions.ImproperlyConfigured as e:
+        preparser.error(e)
 
     parser = argparse.ArgumentParser(prog="gstack")
     parser.add_argument("--config-module", "-m", help="the config module")
