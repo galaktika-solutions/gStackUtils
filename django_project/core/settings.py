@@ -4,7 +4,7 @@
 #
 # from django.utils.translation import ugettext_lazy as _
 # from gdockutils import read_secret_from_file
-from gstackutils.config import Config
+from gstackutils.conf import Config
 
 
 # BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

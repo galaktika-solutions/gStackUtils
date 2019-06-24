@@ -44,7 +44,7 @@ class Service:
     def __init__(self, **kwargs):
         self.fields = {}
         for field_name, _ugm in kwargs.items():
-            if isinstance(_ugm, int):
+            if isinstance(_ugm, int) or isinstance(_ugm, str):
                 ugm = {"uid": _ugm, "gid": _ugm, "mode": 0o400}
             elif isinstance(_ugm, (tuple, list)):
                 if len(_ugm) == 0:
@@ -156,7 +156,7 @@ class Config:
                 mode = "rb" if fi.binary else "r"
                 try:
                     with open(fn, mode) as f:
-                        return self.from_stream(f.read())
+                        return fi.from_stream(f.read())
                 except PermissionError:
                     raise exceptions.ConfigMissingError(f"Field could not be accessed: {name}")
                 except FileNotFoundError:

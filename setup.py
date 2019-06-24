@@ -31,7 +31,7 @@ setup(
         "click >= 7.0",
         # "pick >= 0.6.4",
         "pyopenssl >= 19.0.0",
-        # "psycopg2-binary >= 2.8",
+        "psycopg2-binary >= 2.8",
     ],
     extras_require={
         "dev": [
