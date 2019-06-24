@@ -60,7 +60,7 @@ class TestPathCheck(CleanTestCase):
         self.assertEqual(oct(s.st_mode)[-3:], "755")
 
         os.chmod("tests/to_delete/y", 0o743)
-        utils.path_check("tests/to_delete/y", user="postgres", group="999", mask=0o646, fix=True)
+        utils.path_check("tests/to_delete/y", usr="postgres", grp="999", mode=0o646, fix=True)
         s = os.stat("tests/to_delete/y")
         self.assertEqual(s.st_uid, 999)
         self.assertEqual(s.st_gid, 999)
@@ -68,14 +68,14 @@ class TestPathCheck(CleanTestCase):
 
         os.chown("tests/to_delete/y", 0, 0)
         with self.assertRaises(exceptions.ImproperlyConfigured):
-            utils.path_check("tests/to_delete/y", user=999)
+            utils.path_check("tests/to_delete/y", usr=999)
 
         os.chmod("tests/to_delete/y", 0o777)
         with self.assertRaises(exceptions.ImproperlyConfigured):
-            utils.path_check("tests/to_delete/y", mask=0o640)
+            utils.path_check("tests/to_delete/y", mode=0o640)
 
         with self.assertRaises(exceptions.ImproperlyConfigured):
-            utils.path_check("tests/to_delete/y", group="postgres")
+            utils.path_check("tests/to_delete/y", grp="postgres")
 
 
 class TestCP(CleanTestCase):

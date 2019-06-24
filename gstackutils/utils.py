@@ -46,87 +46,101 @@ def gid(spec, all=False):
     return _uidgid(spec, all, grp.getgrgid, grp.getgrnam, "gr_gid")
 
 
-def path_check(path, user=None, group=None, mask=None, fix=False, strict_mode=False):
+def path_check(path, usr=None, grp=None, mode=None, fix=False, allow_stricter=True):
     """Check the existence, ownership and permissions of a file or directory.
     If the check fails it either fixes it or raises
     :exc:`gstackutils.exceptions.ImproperlyConfigured`.
 
     :param path:  The file to check. When ends with a slash (/), the directory to check.
-    :param user:  The user (for semantics see :meth:`uid`) the file should be owned by.
-    :param group: The group (for semantics see :meth:`gid`) that should be the file's
+    :param usr:   The user (for semantics see :meth:`uid`) the file should be owned by.
+    :param grp:   The group (for semantics see :meth:`gid`) that should be the file's
                   group owner.
-    :param mask:  The most permissive mode setup the file can have. Should be
+    :param mode:  The permission bits the file / directory must have. Should be
                   in the form 0x640.
     :param fix:   If ``True``, possible errors will be fixed by creating the file/directory,
                   modify it's owner/group and mode. if not run as root,
                   :exc:`gstackutils.exceptions.PermissionDenied` will be raised.
-    :param strict_mode: It ``True`` mask will not restrict the permissions but set as is.
+    :param allow_stricter: If ``True`` less permissive mode is considered OK. When fixing
+                  permission bits will be disabled but not enabled.
     """
     if fix and not os.getuid() == 0:
         raise exceptions.PermissionDenied("Only root can fix/create files and directories.")
     isdir = path.endswith("/")
 
     if not isdir and not os.path.isfile(path):
-        if fix:
-            try:
-                open(path, "w").close()
-            except FileNotFoundError as e:
-                raise exceptions.ImproperlyConfigured(f"Could not create file: {path}")
-            user = user or 0  # when created, we can not leave as is...
-            group = group or 0
-            mask = mask or 0o600
-        else:
+        if not fix:
             raise exceptions.ImproperlyConfigured(f"No such file: {path}")
 
-    if isdir and not os.path.isdir(path):
-        if fix:
+        dirname = os.path.dirname("path")
+        if dirname:
             os.makedirs(path)
-            user = user or 0  # when created, we can not leave as is...
-            group = group or 0
-            mask = mask or 0o755
-        else:
+        open(path, "w").close()
+        usr = usr or 0  # when created, we can not leave as is...
+        grp = grp or 0
+        mode = mode or 0o600
+
+    if isdir and not os.path.isdir(path):
+        if not fix:
             raise exceptions.ImproperlyConfigured(f"No such directory: {path}")
 
+        os.makedirs(path)
+        usr = usr or 0  # when created, we can not leave as is...
+        grp = grp or 0
+        mode = mode or 0o755
+
     stat = os.stat(path)
-    if user is not None:
-        _uid = uid(user)
+    if usr is not None:
+        _uid = uid(usr)
         if stat.st_uid != _uid:
             if fix:
                 os.chown(path, _uid, -1)
             else:
                 msg = (
                     f"The owner of {'directory' if isdir else 'file'} {path} "
-                    f"must be {user}."
+                    f"must be {usr}."
                 )
                 raise exceptions.ImproperlyConfigured(msg)
 
-    if group is not None:
-        _gid = gid(group)
+    if grp is not None:
+        _gid = gid(grp)
         if stat.st_gid != _gid:
             if fix:
                 os.chown(path, -1, _gid)
             else:
                 msg = (
                     f"The group owner of {'directory' if isdir else 'file'} {path} "
-                    f"must be {group}."
+                    f"must be {grp}."
                 )
                 raise exceptions.ImproperlyConfigured(msg)
 
-    st_mode = 0o777 if strict_mode else stat.st_mode
-    if mask is not None and (st_mode & 0o777 & ~ mask):
-        if fix:
-            os.chmod(path, st_mode & mask)
+    st_mode = 0o777 & stat.st_mode
+    if mode is not None:
+        if not allow_stricter:
+            if mode != st_mode:
+                if not fix:
+                    msg = (
+                        f"The {'directory' if isdir else 'file'} {path} "
+                        f"has wrong permissions: {oct(st_mode)} "
+                        f"(should be {oct(mode)})."
+                    )
+                    raise exceptions.ImproperlyConfigured(msg)
+                os.chmod(path, mode)
         else:
-            msg = (
-                f"The {'directory' if isdir else 'file'} {path} "
-                f"has wrong permissions: {oct(stat.st_mode & 0o777)} "
-                f"(should be {oct(st_mode & mask)})."
-            )
-            raise exceptions.ImproperlyConfigured(msg)
+            if st_mode & ~ mode:
+                if not fix:
+                    msg = (
+                        f"The {'directory' if isdir else 'file'} {path} "
+                        f"has wrong permissions: {oct(st_mode)} "
+                        f"(should be more restrictive than {oct(mode)})."
+                    )
+                    raise exceptions.ImproperlyConfigured(msg)
+                os.chmod(path, st_mode & mode)
 
 
-def cp(source, dest, substitute=False, env={}):
+def cp(source, dest, substitute=False, env={}, usr=None, grp=None, mode=None):
     shutil.copyfile(source, dest)
+    path_check(dest, usr=usr, grp=grp, mode=mode, fix=True, allow_stricter=False)
+
     if not substitute:
         return
 

@@ -45,23 +45,23 @@ class Service:
         self.fields = {}
         for field_name, _ugm in kwargs.items():
             if isinstance(_ugm, int) or isinstance(_ugm, str):
-                ugm = {"uid": _ugm, "gid": _ugm, "mode": 0o400}
+                ugm = {"usr": _ugm, "grp": _ugm, "mode": 0o400}
             elif isinstance(_ugm, (tuple, list)):
                 if len(_ugm) == 0:
-                    ugm = {"uid": 0, "gid": 0, "mode": 0o400}
+                    ugm = {"usr": 0, "grp": 0, "mode": 0o400}
                 elif len(_ugm) == 1:
-                    ugm = {"uid": _ugm[0], "gid": _ugm[0], "mode": 0o400}
+                    ugm = {"usr": _ugm[0], "grp": _ugm[0], "mode": 0o400}
                 elif len(_ugm) == 2:
-                    ugm = {"uid": _ugm[0], "gid": _ugm[1], "mode": 0o400}
+                    ugm = {"usr": _ugm[0], "grp": _ugm[1], "mode": 0o400}
                 else:
-                    ugm = {"uid": _ugm[0], "gid": _ugm[1], "mode": _ugm[2]}
+                    ugm = {"usr": _ugm[0], "grp": _ugm[1], "mode": _ugm[2]}
             elif isinstance(_ugm, dict):
                 ugm = {}
-                for k in ["uid", "gid", "mode"]:
+                for k in ["usr", "grp", "mode"]:
                     if k in _ugm:
                         ugm[k] = _ugm[k]
-                u = ugm.setdefault("uid", 0)
-                ugm.setdefault("gid", u)
+                u = ugm.setdefault("usr", 0)
+                ugm.setdefault("grp", u)
                 ugm.setdefault("mode", 0o400)
             else:
                 raise exceptions.ImproperlyConfigured(
@@ -92,10 +92,16 @@ class Config:
             self.root_mode = False
 
         if not self.is_dev:
-            utils.path_check("/host/", 0, 0, 0o755, False)
-        utils.path_check(self.GSTACK_ENV_FILE, self.pu, self.pg, 0o644, self.root_mode)
-        utils.path_check(self.GSTACK_SECRET_FILE, self.pu, self.pg, 0o600, self.root_mode)
-        utils.path_check(self.GSTACK_SECRET_DIR, self.pu, self.pg, 0o755, self.root_mode)
+            utils.path_check("/host/", usr=0, grp=0, mode=0o755, fix=False)
+        utils.path_check(
+            self.GSTACK_ENV_FILE, usr=self.pu, grp=self.pg, mode=0o644, fix=self.root_mode
+        )
+        utils.path_check(
+            self.GSTACK_SECRET_FILE, usr=self.pu, grp=self.pg, mode=0o600, fix=self.root_mode
+        )
+        utils.path_check(
+            self.GSTACK_SECRET_DIR, usr=self.pu, grp=self.pg, mode=0o755, fix=self.root_mode
+        )
 
         self.fields = []
         self.field_names = set()
@@ -382,6 +388,6 @@ class Config:
                 with open(fn, mode) as f:
                     f.write(self.get(field_name, stream=True))
                 utils.path_check(
-                    fn, user=ugm["uid"], group=ugm["gid"], mask=ugm["mode"],
-                    fix=True, strict_mode=True
+                    fn, usr=ugm["usr"], grp=ugm["grp"], mode=ugm["mode"],
+                    fix=True, allow_stricter=False
                 )

@@ -15,7 +15,7 @@ class CREDENTIALS(conf.Section):
     PASSWORD = fields.StringField(secret=True, min_length=12)
 
     dummy = conf.Service(
-        PASSWORD={"uid": 999, "gid": "postgres", "mode": 0o600},
+        PASSWORD={"usr": 999, "grp": "postgres", "mode": 0o600},
     )
 
 

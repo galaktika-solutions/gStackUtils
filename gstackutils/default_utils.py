@@ -51,17 +51,9 @@ def ensure_postgres(actions=[], verbose=False):
 
     echo("Copying config files")
     dest = os.path.join(pgdata, "pg_hba.conf")
-    utils.cp(pg_hba_orig, dest)
-    utils.path_check(
-        dest, user="postgres", group="postgres", mask=0o600,
-        fix=True, strict_mode=True
-    )
+    utils.cp(pg_hba_orig, dest, usr="postgres", grp="postgres", mode=0o600)
     dest = os.path.join(pgdata, "postgresql.conf")
-    utils.cp(pg_conf_orig, dest)
-    utils.path_check(
-        dest, user="postgres", group="postgres", mask=0o600,
-        fix=True, strict_mode=True
-    )
+    utils.cp(pg_conf_orig, dest, usr="postgres", grp="postgres", mode=0o600)
     echodone()
 
     # start postgres locally

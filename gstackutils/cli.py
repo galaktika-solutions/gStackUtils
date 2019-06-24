@@ -11,30 +11,6 @@ from . import run
 from . import cert
 
 
-# def db_ensure(args, parser):
-#     try:
-#         db.ensure(args.conf, args.verbose)
-#     except exceptions.ImproperlyConfigured as e:
-#         parser.error(e)
-
-
-# def db_wait(args, parser):
-#     try:
-#         db.wait_for_db(args.timeout, args.conf, args.verbose)
-#     except exceptions.DatabaseNotPresent:
-#         sys.exit(1)
-
-
-# def start_cmd(args, parser):
-#     try:
-#         start.start(args.service, args.conf)
-#     except exceptions.ServiceNotFound:
-#         parser.error(
-#             f"No starter function defined for service {args.service}."
-#             f" Available services are: {', '.join(start.get_starters().keys())}"
-#         )
-
-
 def conf_command(parser):
     def inspect_command(parser):
         def cmd(args):
@@ -251,40 +227,6 @@ def cli():
         extra_parser = subcommands.add_parser(cmd_name, help=help)
         inst = v(extra_parser)
         extra_parser.set_defaults(func=inst.cmd)
-
-
-#     ################
-#     # command `db` #
-#     ################
-#     db_parser = main_command.add_parser("db", help="database related commands")
-#     db_command = db_parser.add_subparsers(title="database subcommands", dest="db_command")
-#
-#     # db ensure
-#     ensure_parser = db_command.add_parser(
-#         "ensure", help="setup the database, create users, set passwords, etc.",
-#         description="setup the database, create users, set passwords, etc."
-#     )
-#     ensure_parser.add_argument("--verbose", "-v", action="store_true")
-#
-#     # db wait
-#     wait_parser = db_command.add_parser(
-#         "wait", help="wait for the database to accept connections",
-#         description="wait for the database to accept connections"
-#     )
-#     wait_parser.add_argument("--timeout", "-t", type=int, default=10)
-#     wait_parser.add_argument("--verbose", "-v", action="store_true")
-#
-#     ###################
-#     # command `start` #
-#     ###################
-#     start_parser = main_command.add_parser("start", help="start a service")
-#     start_parser.add_argument("service")
-#
-#     ####################
-#     # command `backup` #
-#     ####################
-#     backup_parser = main_command.add_parser("backup", help="start a service")
-#     backup_cmd = conf.backup_cmd(backup_parser)
 
     args = parser.parse_args()
     args.func(args)
