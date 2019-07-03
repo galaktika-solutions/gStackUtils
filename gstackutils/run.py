@@ -7,13 +7,8 @@ from . import utils
 
 
 def run(
-    cmd,
-    usr=None, grp=None,
-    stopsignal=None,
-    exit=False,
-    silent=False,
-    cwd=None,
-    extraenv={}
+    cmd, usr=None, grp=None, stopsignal=None,
+    exit=False, silent=False, cwd=None, extraenv={}
 ):
     """Run a command."""
     usr = usr if usr is not None else 0

@@ -38,13 +38,13 @@ DEBUG = config.get("DJANGO_DEBUG")
 
 
 STATIC_URL = '/static/'
-# STATIC_ROOT = '/src/static/'
-# STATICFILES_FINDERS = (
-#     'django.contrib.staticfiles.finders.AppDirectoriesFinder',
-# )
+STATIC_ROOT = '/src/static/'
+STATICFILES_FINDERS = (
+    'django.contrib.staticfiles.finders.AppDirectoriesFinder',
+)
 
-# MEDIA_ROOT = '/data/files/media/'
-# MEDIA_URL = '/media/'
+MEDIA_ROOT = '/data/files/media/'
+MEDIA_URL = '/media/'
 
 ROOT_URLCONF = 'core.urls'
 

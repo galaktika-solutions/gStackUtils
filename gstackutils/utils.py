@@ -46,7 +46,11 @@ def gid(spec, all=False):
     return _uidgid(spec, all, grp.getgrgid, grp.getgrnam, "gr_gid")
 
 
-def path_check(path, usr=None, grp=None, mode=None, fix=False, allow_stricter=True):
+def path_check(
+    path,
+    usr=None, grp=None, mode=None,
+    fix=False, allow_stricter=True, recursive=False
+):
     """Check the existence, ownership and permissions of a file or directory.
     If the check fails it either fixes it or raises
     :exc:`gstackutils.exceptions.ImproperlyConfigured`.
@@ -60,8 +64,9 @@ def path_check(path, usr=None, grp=None, mode=None, fix=False, allow_stricter=Tr
     :param fix:   If ``True``, possible errors will be fixed by creating the file/directory,
                   modify it's owner/group and mode. if not run as root,
                   :exc:`gstackutils.exceptions.PermissionDenied` will be raised.
-    :param allow_stricter: If ``True`` less permissive mode is considered OK. When fixing
+    :param allow_stricter: If ``True``, less permissive mode is considered OK. When fixing
                   permission bits will be disabled but not enabled.
+    :param recursive: If ``True``, fixing directory ownership will be done recursively.
     """
     if fix and not os.getuid() == 0:
         raise exceptions.PermissionDenied("Only root can fix/create files and directories.")
@@ -94,6 +99,12 @@ def path_check(path, usr=None, grp=None, mode=None, fix=False, allow_stricter=Tr
         if stat.st_uid != _uid:
             if fix:
                 os.chown(path, _uid, -1)
+                if recursive and isdir:
+                    for root, dirs, files in os.walk(path):
+                        for d in dirs:
+                            os.chown(os.path.join(root, d), _uid, -1)
+                        for f in files:
+                            os.chown(os.path.join(root, f), _uid, -1)
             else:
                 msg = (
                     f"The owner of {'directory' if isdir else 'file'} {path} "
@@ -106,6 +117,12 @@ def path_check(path, usr=None, grp=None, mode=None, fix=False, allow_stricter=Tr
         if stat.st_gid != _gid:
             if fix:
                 os.chown(path, -1, _gid)
+                if recursive and isdir:
+                    for root, dirs, files in os.walk(path):
+                        for d in dirs:
+                            os.chown(os.path.join(root, d), -1, _gid)
+                        for f in files:
+                            os.chown(os.path.join(root, f), -1, _gid)
             else:
                 msg = (
                     f"The group owner of {'directory' if isdir else 'file'} {path} "
@@ -113,8 +130,8 @@ def path_check(path, usr=None, grp=None, mode=None, fix=False, allow_stricter=Tr
                 )
                 raise exceptions.ImproperlyConfigured(msg)
 
-    st_mode = 0o777 & stat.st_mode
     if mode is not None:
+        st_mode = 0o777 & stat.st_mode
         if not allow_stricter:
             if mode != st_mode:
                 if not fix:
@@ -135,6 +152,14 @@ def path_check(path, usr=None, grp=None, mode=None, fix=False, allow_stricter=Tr
                     )
                     raise exceptions.ImproperlyConfigured(msg)
                 os.chmod(path, st_mode & mode)
+
+
+def path_fix(path, usr=None, grp=None):
+    path_check(
+        path,
+        usr=usr, grp=grp, mode=None,
+        fix=True, recursive=True
+    )
 
 
 def cp(source, dest, substitute=False, env={}, usr=None, grp=None, mode=None):

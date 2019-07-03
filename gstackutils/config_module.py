@@ -1,4 +1,5 @@
 import argparse
+import sys
 
 from . import conf
 from . import fields
@@ -114,31 +115,29 @@ class Start_postgres(conf.Command):
         run.run(["postgres"], usr="postgres", exit=True)
 
 
-class Start_django(conf.Command):
-    """start the django service"""
-
-    def cmd(self, args):
-        args.config.prepare("django")
-        du.wait_for_db(verbose=args.config.is_dev)
-        run.run(
-            ["django-admin", "runserver", "0.0.0.0:8000"],
-            usr="django", stopsignal="SIGINT", exit=True
-        )
-
-
 class Django_admin(conf.Command):
     "run django-admin with Django's dependencies and permissions"
 
     def arguments(self, parser):
         parser.add_argument("command", nargs=argparse.REMAINDER)
+        parser.add_argument("--chown", action="store_true")
 
     def cmd(self, args):
         args.config.prepare("django")
         du.wait_for_db(verbose=args.config.is_dev)
-        run.run(
+        # in development mode, we change some source folder's and files ownership
+        # (recursively) to django and change it back later.
+        if args.config.is_dev and args.chown:
+            du.path_fix("/src/django_project/", usr="django", grp="django")
+            du.path_fix("/src/static/", usr="django", grp="django")
+        returncode = run.run(
             ["django-admin"] + args.command,
             usr="django", stopsignal="SIGINT", exit=True
         )
+        if args.config.is_dev and args.chown:
+            du.path_fix("/src/django_project/", usr=args.config.pu, grp=args.config.pg)
+            du.path_fix("/src/static/", usr=args.config.pu, grp=args.config.pg)
+        sys.exit(returncode)
 
 
 class Backup(conf.Command):
