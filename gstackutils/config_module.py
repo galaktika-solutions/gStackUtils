@@ -6,6 +6,7 @@ from . import fields
 from . import default_utils as du
 from . import run
 from . import exceptions
+from . import utils
 
 
 class COMPOSE_VARIABLES(conf.Section):
@@ -128,15 +129,16 @@ class Django_admin(conf.Command):
         # in development mode, we change some source folder's and files ownership
         # (recursively) to django and change it back later.
         if args.config.is_dev and args.chown:
-            du.path_fix("/src/django_project/", usr="django", grp="django")
-            du.path_fix("/src/static/", usr="django", grp="django")
+            utils.path_fix("/src/django_project/", usr="django", grp="django")
+            utils.path_fix("/src/static/", usr="django", grp="django")
         returncode = run.run(
             ["django-admin"] + args.command,
-            usr="django", stopsignal="SIGINT", exit=True
+            usr="django", stopsignal="SIGINT"
         )
         if args.config.is_dev and args.chown:
-            du.path_fix("/src/django_project/", usr=args.config.pu, grp=args.config.pg)
-            du.path_fix("/src/static/", usr=args.config.pu, grp=args.config.pg)
+            utils.path_fix("/src/django_project/", usr=args.config.pu, grp=args.config.pg)
+            utils.path_fix("/src/static/", usr=args.config.pu, grp=args.config.pg)
+            utils.pycclean()
         sys.exit(returncode)
 
 

@@ -24,7 +24,7 @@ services:
       - "data:/data"
       - ".:/src"
       - ".:/host"
-    command: ["gstack", "start-django"]
+    command: ["gstack", "django-admin", "runserver", "0.0.0.0:8000"]
     depends_on: ["postgres"]
     ports:
       - "127.0.0.1:8000:8000"

@@ -99,7 +99,9 @@ def db_healthcheck(config, verbose=False):
     if verbose:
         print("trying to connect ... ", file=sys.stderr, flush=True, end="")
     try:
-        psycopg2.connect(dbname=dbname, user=user, password=password, host=host)
+        psycopg2.connect(
+            dbname=dbname, user=user, password=password, host=host, connect_timeout=1
+        )
     except Exception as e:
         if verbose:
             print(e, file=sys.stderr, flush=True, end="")

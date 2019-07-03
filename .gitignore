@@ -9,3 +9,4 @@ __pycache__
 /dist
 /backup
 /tests/to_delete
+/static

@@ -208,6 +208,14 @@ def cp(source, dest, substitute=False, env={}, usr=None, grp=None, mode=None):
         f.writelines(newlines)
 
 
+def pycclean():
+    for root, dirs, files in os.walk("/src/"):
+        for d in dirs:
+            if d == "__pycache__":
+                dir = os.path.join(root, d)
+                shutil.rmtree(dir)
+
+
 # def ask(
 #     options=[], prompt='', default=None, multiple=False, marks=[]
 # ):
