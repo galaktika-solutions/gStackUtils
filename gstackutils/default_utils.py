@@ -153,3 +153,114 @@ def wait_for_db(config=None, timeout=10, verbose=False):
         raise Exception("Could not connect to the database.")
     elif exitreason == "S":
         raise SystemExit()
+
+
+def set_backup_perms(config):
+    """Set the owner and permission of the backup directory recursively."""
+
+    backup_dir = "/host/backup/"
+    backup_uid = config.get("BACKUP_UID")
+    backup_gid = config.get("BACKUP_GID")
+    print(backup_uid, backup_gid)
+
+    os.makedirs(os.path.join(backup_dir, 'db'), exist_ok=True)
+    os.makedirs(os.path.join(backup_dir, 'files'), exist_ok=True)
+
+    for root, dirs, files in os.walk(backup_dir):
+        os.chown(root, backup_uid, backup_gid)
+        os.chmod(root, 0o755)
+        for f in files:
+            path = os.path.join(root, f)
+            os.chown(path, backup_uid, backup_gid)
+            os.chmod(path, 0o600)
+    os.chmod(backup_dir, 0o755)
+
+
+def set_files_perms():
+    """Set the owner and permissions of the data files directory recursively.
+
+    See Django settings FILE_UPLOAD_DIRECTORY_PERMISSIONS and FILE_UPLOAD_PERMISSIONS.
+    Also note the 0o2755 mode (setgid bit): the group of the files created inside this
+    directory will not be that of the user who created them, but that of the parent
+    directory.
+    """
+
+    data_files_dir = "/data/files/"
+    os.makedirs(data_files_dir, exist_ok=True)
+    u, g = utils.uid('django'), utils.gid('nginx')
+    for root, dirs, files in os.walk(data_files_dir):
+        os.chown(root, u, g)
+        os.chmod(root, 0o2750)
+        for f in files:
+            path = os.path.join(root, f)
+            os.chown(path, u, g)
+            os.chmod(path, 0o640)
+
+
+def backup(dbformat="custom", files=True, config=None):
+    config = config or conf.Config()
+    backup_dir = "/host/backup/"
+    data_files_dir = "/data/files/"
+    set_backup_perms(config)
+
+    if dbformat:
+        wait_for_db(config=config)
+        timestamp = time.strftime('%Y-%m-%d-%H-%M-%S', time.gmtime())
+        prefix = config.get("DB_BACKUP_PREFIX", default="gstack")
+        filename = f"{prefix}-db-{timestamp}.backup"
+        if dbformat == 'plain':
+            filename += '.sql'
+        filename = os.path.join(backup_dir, 'db', filename)
+        cmd = ['pg_dump', '-v', "--clean", "--create", '-F', dbformat, '-f', filename]
+        extraenv = {
+            "PGHOST": "postgres",
+            "PGUSER": "postgres",
+            "PGDATABASE": "django",
+            "PGPASSWORD": config.get("DB_PASSWORD_POSTGRES"),
+        }
+        run.run(cmd, extraenv=extraenv)
+
+    if files:
+        set_files_perms()
+        cmd = [
+            'rsync', '-v', '-a', '--delete', '--stats',
+            data_files_dir, os.path.join(backup_dir, 'files/')
+        ]
+        run.run(cmd)
+    set_backup_perms(config)
+
+
+# def restore(files, db_backup_file, conf=None, backup_dir=None, data_files_dir=None):
+#     config = conf or Config()
+#     backup_dir = backup_dir or config.env("GSTACK_BACKUP_DIR", "/host/backup")
+#     extraenv = {
+#         "PGHOST": "postgres",
+#         "PGUSER": "postgres",
+#         "PGDATABASE": "postgres",
+#         "PGPASSWORD": config.get("DB_PASSWORD_POSTGRES"),
+#     }
+#
+#     if db_backup_file:
+#         wait_for_db(conf=config)
+#         db_backup_file = os.path.join(backup_dir, 'db', db_backup_file)
+#         if db_backup_file.endswith('.backup'):
+#             cmd = [
+#                 'pg_restore', '-d', 'postgres', '--exit-on-error', '--verbose',
+#                 '--clean', '--create', db_backup_file
+#             ]
+#             run.run(cmd, extraenv=extraenv)
+#         elif db_backup_file.endswith('.backup.sql'):
+#             cmd = [
+#                 'psql', '-v', 'ON_ERROR_STOP=1',
+#                 '-f', db_backup_file
+#             ]
+#             run.run(cmd, extraenv=extraenv)
+#
+#     if files:
+#         data_files_dir = data_files_dir or config.env("GSTACK_DATA_FILES_DIR", "/data/files")
+#         cmd = [
+#             'rsync', '-v', '-a', '--delete', '--stats',
+#             os.path.join(backup_dir, 'files/'), data_files_dir
+#         ]
+#         run.run(cmd, log_command=True)
+#         set_files_perms(data_files_dir)

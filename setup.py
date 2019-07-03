@@ -41,6 +41,7 @@ setup(
             "twine >= 1.12.1",
             "wheel >= 0.32.3",
             "django >= 2.2",
+            "uwsgi >= 2.0.18",
         ]
     },
     entry_points={

@@ -1,4 +1,4 @@
-FROM ubuntu:bionic-20190307
+FROM ubuntu:bionic-20190612
 
 ENV DEBIAN_FRONTEND noninteractive
 
@@ -28,8 +28,11 @@ ENV PYTHONPATH /src/django_project/
 RUN groupadd -r django --gid=8000 && useradd -r -m -g django --uid=8000 django
 ENV DJANGO_SETTINGS_MODULE core.settings
 ENV GSTACK_CONFIG_MODULE config.gstack_conf
-# RUN pip install --no-cache-dir \
-#   django==2.2
+# RUN pip install --no-cache-dir django>=2.2
+
+# nginx
+RUN groupadd -r nginx --gid=443 && useradd -r -g nginx --uid=443 nginx
+RUN apt-get update && apt-get install -y nginx
 
 # COPY --chown=django:django / /src
 

@@ -134,8 +134,17 @@ class Config:
         return fi
 
     def get(self, name, default_exception=False, validate=False, stream=False):
-        fi = self.get_field(name)
+        # try:
+        #     value = self._get(name, default_exception)
+        # except (exceptions.ConfigMissingError, KeyError):
+        #     if default is not None:
+        #         return default
+        #     raise
         value = self._get(name, default_exception)
+        # if value is None:
+        #     return ifnone
+
+        fi = self.get_field(name)
         if validate:
             fi.validate(value)
         return fi.to_stream(value) if stream else value
@@ -167,10 +176,14 @@ class Config:
                     raise exceptions.ConfigMissingError(f"Field could not be accessed: {name}")
                 except FileNotFoundError:
                     pass
-        if fi.default:
+        if fi.default is not None:
+            if isinstance(fi.default, fields.Field):
+                ret = self._get(fi.default.name)
+            else:
+                ret = fi.default
             if default_exception:
                 raise exceptions.DefaultUsedException()
-            return fi.default
+            return ret
         raise exceptions.ConfigMissingError(f"Field not set: {name}")
 
     def set(self, name, value, stream=False):
@@ -227,6 +240,7 @@ class Config:
                 )
             self.fields.append((field_name, field_instance, section_instance))
             self.field_names.add(field_name)
+            field_instance.name = field_name
 
         services = [
             (service_name, service_instance)
@@ -294,7 +308,7 @@ class Config:
                 value = self.get(field_name, default_exception=True, validate=True)
                 flag = "OK"
             except exceptions.DefaultUsedException:
-                value = field_instance.default
+                value = self.get(field_name)
                 flag = "DEF"
             except exceptions.ConfigMissingError:
                 value = ""

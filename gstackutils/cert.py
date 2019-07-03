@@ -81,7 +81,8 @@ def generate(names, ips=None, cakeyfile=None, cacertfile=None):
             buf = f.read()
             cacert = crypto.load_certificate(SSL.FILETYPE_PEM, buf)
     else:
-        cacert = make_cert(f"{cn}_CA")
+        # cacert = make_cert(f"{cn}_CA")
+        cacert = make_cert(f"{cn}")
         cacert.set_issuer(cacert.get_subject())
         cacert.set_pubkey(cakey)
         cacert.add_extensions([

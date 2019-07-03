@@ -1,7 +1,10 @@
+import argparse
+
 from . import conf
 from . import fields
 from . import default_utils as du
 from . import run
+from . import exceptions
 
 
 class COMPOSE_VARIABLES(conf.Section):
@@ -21,19 +24,31 @@ class POSTGRES_PASSWORDS(conf.Section):
 
     django = conf.Service(
         DB_PASSWORD_DJANGO="django",
+        DB_PASSWORD_EXPLORER="django",
     )
 
 
 class DJANGO(conf.Section):
     DJANGO_SECRET_KEY = fields.StringField(secret=True)
+    DJANGO_DEBUG = fields.BooleanField(default=False)
 
     django = conf.Service(
         DJANGO_SECRET_KEY="django",
     )
 
 
+class TECHNICAL(conf.Section):
+    BACKUP_UID = fields.IntegerField(default=0)
+    BACKUP_GID = fields.IntegerField(default=BACKUP_UID)
+
+
+def validate(config):
+    if not config.is_dev and config.get("DJANGO_DEBUG"):
+        raise exceptions.ValidationError("Django DEBUG must not be True in production")
+
+
 class Start_postgres(conf.Command):
-    "start the postgresql service"
+    """start the postgresql service"""
 
     def cmd(self, args):
         args.config.prepare("postgres")
@@ -45,6 +60,14 @@ class Start_postgres(conf.Command):
             {
                 "sql": "ALTER ROLE postgres ENCRYPTED PASSWORD %s",
                 "params": (postgres_pass,),
+            },
+            {
+                "dbname": "template1",
+                "sql": "CREATE EXTENSION unaccent",
+            },
+            {
+                "dbname": "template1",
+                "sql": "CREATE EXTENSION fuzzystrmatch",
             },
             {
                 "sql": "CREATE ROLE django",
@@ -63,6 +86,14 @@ class Start_postgres(conf.Command):
             {
                 "user": "django",
                 "sql": "CREATE DATABASE django",
+            },
+            {
+                "dbname": "django",
+                "sql": "CREATE EXTENSION unaccent",
+            },
+            {
+                "dbname": "django",
+                "sql": "CREATE EXTENSION fuzzystrmatch",
             },
             {
                 "user": "django", "dbname": "django",
@@ -84,12 +115,38 @@ class Start_postgres(conf.Command):
 
 
 class Start_django(conf.Command):
-    "start the django service"
+    """start the django service"""
 
     def cmd(self, args):
         args.config.prepare("django")
-        du.wait_for_db()
+        du.wait_for_db(verbose=args.config.is_dev)
         run.run(
             ["django-admin", "runserver", "0.0.0.0:8000"],
             usr="django", stopsignal="SIGINT", exit=True
         )
+
+
+class Django_admin(conf.Command):
+    "run django-admin with Django's dependencies and permissions"
+
+    def arguments(self, parser):
+        parser.add_argument("command", nargs=argparse.REMAINDER)
+
+    def cmd(self, args):
+        args.config.prepare("django")
+        du.wait_for_db(verbose=args.config.is_dev)
+        run.run(
+            ["django-admin"] + args.command,
+            usr="django", stopsignal="SIGINT", exit=True
+        )
+
+
+class Backup(conf.Command):
+    """create a backup"""
+
+    def arguments(self, parser):
+        parser.add_argument("-d", "--dbformat", choices=['custom', 'plain'])
+        parser.add_argument("-f", "--files", action="store_true")
+
+    def cmd(self, args):
+        du.backup(config=args.config, dbformat=args.dbformat, files=args.files)
