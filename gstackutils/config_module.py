@@ -7,10 +7,25 @@ from . import default_utils as du
 from . import run
 from . import exceptions
 from . import utils
+from . import validators
 
 
 class COMPOSE_VARIABLES(conf.Section):
     COMPOSE_FILE = fields.StringField(default="docker-compose.yml")
+    HOST_NAMES = fields.StringListField(
+        default=["gstack.localhost"],
+        validators=(validators.HostNameValidator(),)
+    )
+
+
+class CERTIFICATES(conf.Section):
+    CERTIFICATE_KEY = fields.SSLPrivateKeyField()
+    CERTIFICATE_CRT = fields.SSLCertificateField(secret=True)
+
+    nginx = conf.Service(
+        CERTIFICATE_KEY="nginx",
+        CERTIFICATE_CRT="nginx",
+    )
 
 
 class POSTGRES_PASSWORDS(conf.Section):
@@ -112,8 +127,29 @@ class Start_postgres(conf.Command):
             },
         ]
 
-        du.ensure_postgres(verbose=True, actions=actions)
+        utils.path_fix("/host/log/", usr=args.config.pu, grp=args.config.pg)
+        utils.path_fix("/host/log/postgres/", usr="postgres", grp="postgres")
+        du.ensure_postgres(args.config, verbose=True, actions=actions)
         run.run(["postgres"], usr="postgres", exit=True)
+
+
+class Start_nginx(conf.Command):
+    """start the nginx service"""
+
+    def cmd(self, args):
+        args.config.prepare("nginx")
+        utils.path_fix("/host/log/", usr=args.config.pu, grp=args.config.pg)
+        utils.path_check(
+            "/host/log/nginx/",
+            usr="nginx", grp="nginx", mode=(0o755 if args.config.is_dev else 0o700),
+            fix=True
+        )
+
+        utils.cp(
+            "/src/config/nginx.conf", "/etc/nginx/nginx.conf",
+            substitute=True, usr="nginx", grp="nginx", mode=0o600
+        )
+        run.run(["nginx"], exit=True)
 
 
 class Django_admin(conf.Command):

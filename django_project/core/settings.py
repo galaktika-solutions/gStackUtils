@@ -14,8 +14,8 @@ SECRET_KEY = config.get("DJANGO_SECRET_KEY")
 
 DEBUG = config.get("DJANGO_DEBUG")
 
-# ALLOWED_HOSTS = [os.environ.get('HOST_NAME'), os.environ.get('SERVER_IP')]
-#
+ALLOWED_HOSTS = config.get("HOST_NAMES")
+
 # ADMINS = [
 #     re.match(r'^\s*([^<]*?)\s*<(.*)>.*', admin).groups()
 #     for admin in os.environ.get('ADMINS', '').split(',')
@@ -243,11 +243,11 @@ DATABASES = {
 #
 # LOGIN_REDIRECT_URL = '/'
 # LOGOUT_REDIRECT_URL = '/'
-#
+
 # SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
-# SESSION_COOKIE_SECURE = True
-# CSRF_COOKIE_SECURE = True
-#
+SESSION_COOKIE_SECURE = True
+CSRF_COOKIE_SECURE = True
+
 # LOGGING_CONFIG = None
 # log_config = {
 #     'version': 1,

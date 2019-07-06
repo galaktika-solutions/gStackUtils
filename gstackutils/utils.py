@@ -131,6 +131,7 @@ def path_check(
                 raise exceptions.ImproperlyConfigured(msg)
 
     if mode is not None:
+        # print(f"{path}: mode is {oct(mode)}")
         st_mode = 0o777 & stat.st_mode
         if not allow_stricter:
             if mode != st_mode:

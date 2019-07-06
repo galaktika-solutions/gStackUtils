@@ -21,7 +21,7 @@ def pg_pass(user, password):
     return f"md5{md5(password + user)}"
 
 
-def ensure_postgres(actions=[], verbose=False):
+def ensure_postgres(config, actions=[], verbose=False):
     def echo(msg):
         if verbose:
             click.echo(f"{msg} ...", nl=False)
@@ -53,13 +53,17 @@ def ensure_postgres(actions=[], verbose=False):
     dest = os.path.join(pgdata, "pg_hba.conf")
     utils.cp(pg_hba_orig, dest, usr="postgres", grp="postgres", mode=0o600)
     dest = os.path.join(pgdata, "postgresql.conf")
-    utils.cp(pg_conf_orig, dest, usr="postgres", grp="postgres", mode=0o600)
+    utils.cp(
+        pg_conf_orig, dest, usr="postgres", grp="postgres", mode=0o600,
+        substitute=True, env={"LOG_FILE_MODE": "0644" if config.is_dev else "0600"}
+    )
     echodone()
 
     # start postgres locally
     cmd = ("pg_ctl", "-o", "-c listen_addresses='127.0.0.1'", "-w", "start",)
     echo("Starting the database server locally")
-    run.run(cmd, usr="postgres", silent=True)
+    # run.run(cmd, usr="postgres", silent=True)
+    run.run(cmd, usr="postgres")
     echodone()
 
     for action in actions:
@@ -163,7 +167,6 @@ def set_backup_perms(config):
     backup_dir = "/host/backup/"
     backup_uid = config.get("BACKUP_UID")
     backup_gid = config.get("BACKUP_GID")
-    print(backup_uid, backup_gid)
 
     os.makedirs(os.path.join(backup_dir, 'db'), exist_ok=True)
     os.makedirs(os.path.join(backup_dir, 'files'), exist_ok=True)

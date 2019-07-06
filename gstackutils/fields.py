@@ -161,6 +161,10 @@ class IntegerListField(ListMixin, IntegerField):
     pass
 
 
+class StringListField(ListMixin, StringField):
+    pass
+
+
 class BooleanField(ShowStreamOrMaskMixin, Field):
     def from_stream(self, s):
         return s.upper() in ("TRUE", "ON", "1")
@@ -198,8 +202,8 @@ class SSLPrivateKeyField(Field):
     binary = True
 
     def __init__(self, *args, **kwargs):
-        if "secret" in kwargs:
-            raise exceptions.InvalidUsage("RSAPrivateKey must always be a secret.")
+        if "secret" in kwargs and not kwargs["secret"]:
+            raise exceptions.InvalidUsage("SSLPrivateKey must always be a secret.")
         kwargs["secret"] = True
         super().__init__(*args, **kwargs)
 
@@ -210,7 +214,7 @@ class SSLPrivateKeyField(Field):
         return crypto.dump_privatekey(SSL.FILETYPE_PEM, value)
 
     def reportable(self, value):
-        return f"RSA private key, bitsize: {value.bits()}"
+        return f"SSL private key, bitsize: {value.bits()}"
 
 
 class SSLCertificateField(Field):
