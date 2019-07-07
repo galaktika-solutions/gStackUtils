@@ -207,14 +207,17 @@ def cli():
 
     parser = argparse.ArgumentParser(prog="gstack")
     parser.add_argument("--config-module", "-m", help="the config module")
-    parser.set_defaults(config=config)
+    parser.set_defaults(config=config, parser=parser)
 
     subcommands = parser.add_subparsers(title="commands")
 
     conf_parser = subcommands.add_parser("conf", help="configuration system")
+    conf_parser.set_defaults(parser=conf_parser)
     conf_command(conf_parser)
+
     run_parser = subcommands.add_parser("run", help="run command as different user")
     run_command(run_parser)
+
     cert_parser = subcommands.add_parser("cert", help="generate certificates for development")
     cert_command(cert_parser)
 
@@ -229,4 +232,6 @@ def cli():
         extra_parser.set_defaults(func=inst.cmd)
 
     args = parser.parse_args()
+    if not hasattr(args, "func"):
+        args.parser.error("No command given.")
     args.func(args)
