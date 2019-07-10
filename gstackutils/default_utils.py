@@ -4,7 +4,7 @@ import sys
 import signal
 import time
 
-import click
+# from prompt_toolkit import print_formatted_text as print
 import psycopg2
 
 from . import conf
@@ -24,11 +24,11 @@ def pg_pass(user, password):
 def ensure_postgres(config, actions=[], verbose=False):
     def echo(msg):
         if verbose:
-            click.echo(f"{msg} ...", nl=False)
+            utils.pprint(f"{msg} ...", end="")
 
     def echodone(msg="OK"):
         if verbose:
-            click.echo(f" {msg}")
+            utils.pprint(f" {msg}")
 
     pg_hba_orig = "config/pg_hba.conf"
     pg_conf_orig = "config/postgresql.conf"
@@ -101,24 +101,24 @@ def db_healthcheck(config, verbose=False):
     password = config.get("DB_PASSWORD_DJANGO")
     dbname = "django"
     if verbose:
-        print("trying to connect ... ", file=sys.stderr, flush=True, end="")
+        utils.pprint("trying to connect ... ", file=sys.stderr, flush=True, end="")
     try:
         psycopg2.connect(
             dbname=dbname, user=user, password=password, host=host, connect_timeout=1
         )
     except Exception as e:
         if verbose:
-            print(e, file=sys.stderr, flush=True, end="")
+            utils.pprint(e, file=sys.stderr, flush=True, end="")
         raise
     else:
         if verbose:
-            print("OK", file=sys.stderr, flush=True)
+            utils.pprint("OK", file=sys.stderr, flush=True)
 
 
 def wait_for_db(config=None, timeout=10, verbose=False):
     def echo(msg):
         if verbose:
-            click.echo(f"{msg} ...")
+            utils.pprint(f"{msg} ...")
 
     config = config or conf.Config()
 

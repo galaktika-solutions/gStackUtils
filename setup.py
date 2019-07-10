@@ -28,10 +28,8 @@ setup(
     license="MIT",
     packages=["gstackutils"],
     install_requires=[
-        "click >= 7.0",
-        # "pick >= 0.6.4",
         "pyopenssl >= 19.0.0",
-        "psycopg2-binary >= 2.8",
+        "prompt_toolkit >= 2.0.9",
     ],
     extras_require={
         "dev": [
@@ -42,7 +40,10 @@ setup(
             "wheel >= 0.32.3",
             "django >= 2.2",
             "uwsgi >= 2.0.18",
-        ]
+        ],
+        "default": [
+            "psycopg2-binary >= 2.8",
+        ],
     },
     entry_points={
         "console_scripts": [

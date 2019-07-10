@@ -9,7 +9,7 @@ init:
 		set -e; \
 		python3.6 -m venv ./.venv; \
 		pip install --no-cache-dir --upgrade pip; \
-		pip install --no-cache-dir -e .[dev] \
+		pip install --no-cache-dir -e .[dev,default] \
 	'
 
 .PHONY: docs

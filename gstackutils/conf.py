@@ -2,7 +2,8 @@ import os
 import re
 import importlib
 import inspect
-import click
+
+from prompt_toolkit import HTML
 
 from . import fields
 from . import exceptions
@@ -134,15 +135,7 @@ class Config:
         return fi
 
     def get(self, name, default_exception=False, validate=False, stream=False):
-        # try:
-        #     value = self._get(name, default_exception)
-        # except (exceptions.ConfigMissingError, KeyError):
-        #     if default is not None:
-        #         return default
-        #     raise
         value = self._get(name, default_exception)
-        # if value is None:
-        #     return ifnone
 
         fi = self.get_field(name)
         if validate:
@@ -296,10 +289,11 @@ class Config:
     def inspect(self, develop=False):
         self._root_mode_needed()
         if develop:
-            click.echo(f"GSTACK_CONFIG_MODULE = {self.config_module_var}")
+            utils.pprint(f"GSTACK_CONFIG_MODULE = {self.config_module_var}")
+
             for var in VARIABLES:
-                click.echo(f"GSTACK_CONFIG_MODULE = {getattr(self, var)}")
-            click.echo()
+                utils.pprint(f"GSTACK_CONFIG_MODULE = {getattr(self, var)}")
+            utils.pprint()
 
         info = {}
         valid = True
@@ -332,39 +326,37 @@ class Config:
 
         # output the result
         for k, v in info.items():
-            click.secho(k.__class__.__name__, fg="yellow", bold=True)
-            # if k.__class__.__doc__:
-            #     click.echo(inspect.getdoc(k))
+            utils.pprint(HTML(f'<b fg="yellow">{k.__class__.__name__}</b>'))
             for f in v:
                 if f[1] != "INV":
-                    click.echo(f"    {f[0]:>{max_name}} {f[1]:>1} {f[2]}")
+                    utils.pprint(f"    {f[0]:>{max_name}} {f[1]:>1} {f[2]}")
                 else:
-                    click.echo(f"    {f[0]:>{max_name}} {f[1]:>1} {f[2][0]}")
+                    utils.pprint(f"    {f[0]:>{max_name}} {f[1]:>1} {f[2][0]}")
                     for message in f[2][1:]:
-                        click.echo(f"    {'':>{max_name}} {'':>1} {message}")
+                        utils.pprint(f"    {'':>{max_name}} {'':>1} {message}")
 
         if valid and hasattr(self.config_module, "validate"):
             try:
                 getattr(self.config_module, "validate")(self)
             except exceptions.ValidationError as e:
-                click.secho("Validation errors:", fg="red", bold=True)
+                utils.pprint(HTML('<b fg="red">Validation errors:</b>'))
                 for msg in e.messages:
-                    click.echo(f"    {msg}")
+                    utils.pprint(f"    {msg}")
             else:
-                click.secho("Validation OK", fg="green", bold=True)
+                utils.pprint(HTML('<b fg="green">Validation OK</b>'))
 
         stale = self.stale(False)
         if stale:
-            click.echo()
-            click.secho("Stale environment config:", fg="yellow", bold=True)
+            utils.pprint()
+            utils.pprint(HTML('<b fg="yellow">Stale environment config:</b>'))
             for n in stale:
-                click.secho(f"    {n}", fg="red", bold=True)
+                utils.pprint(HTML(f'<b fg="red">    {n}</b>'))
         stale = self.stale(True)
         if stale:
-            click.echo()
-            click.secho("Stale secret config:", fg="yellow", bold=True)
+            utils.pprint()
+            utils.pprint(HTML('<b fg="yellow">Stale secret config:</b>'))
             for n in stale:
-                click.secho(f"    {n}", fg="red", bold=True)
+                utils.pprint(HTML(f'<b fg="red">    {n}</b>'))
 
     def delete_stale(self):
         self._root_mode_needed()

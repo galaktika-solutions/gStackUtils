@@ -60,7 +60,6 @@ def conf_command(parser):
 
         parser.set_defaults(func=cmd)
         parser.add_argument("name", help="field name")
-        # parser.add_argument("--name", "-n", help="field name")
         group = parser.add_mutually_exclusive_group()
         group.add_argument(
             "--value", "-v", help="the value of the config to set"
@@ -195,6 +194,14 @@ def cert_command(parser):
     )
 
 
+def browse_command(parser):
+    def cmd(args):
+        from prompt_toolkit import Application
+        Application(full_screen=False).run()
+
+    parser.set_defaults(func=cmd)
+
+
 def cli():
     preparser = argparse.ArgumentParser(prog="gstack", add_help=False)
     preparser.add_argument("--config-module", "-m", help="the config module")
@@ -220,6 +227,9 @@ def cli():
 
     cert_parser = subcommands.add_parser("cert", help="generate certificates for development")
     cert_command(cert_parser)
+
+    browse_parser = subcommands.add_parser("browse", help="browse the file system")
+    browse_command(browse_parser)
 
     for k, v in inspect.getmembers(
         config.config_module,

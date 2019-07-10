@@ -1,10 +1,14 @@
 """General utility functions."""
 
 import os
+import sys
 import pwd
 import grp
 import shutil
 import re
+
+import prompt_toolkit
+# from prompt_toolkit import print_formatted_text
 
 from . import exceptions
 
@@ -131,7 +135,6 @@ def path_check(
                 raise exceptions.ImproperlyConfigured(msg)
 
     if mode is not None:
-        # print(f"{path}: mode is {oct(mode)}")
         st_mode = 0o777 & stat.st_mode
         if not allow_stricter:
             if mode != st_mode:
@@ -217,41 +220,16 @@ def pycclean():
                 shutil.rmtree(dir)
 
 
-# def ask(
-#     options=[], prompt='', default=None, multiple=False, marks=[]
-# ):
-#     """Asks the user to select one (or more) from a list of options."""
-#
-#     if not options:
-#         raise ValueError('Nothing to choose from.')
-#     options = [o if isinstance(o, tuple) else (o, o) for o in options]
-#     if prompt:
-#         click.echo(f"\n{prompt}\n", err=True)
-#     else:
-#         click.echo("", err=True)
-#     for i, o in enumerate(options):
-#         d = '•' if o[0] == default else ' '
-#         m = '✓' if i in marks else ' '
-#         click.echo(f"{i:>3} {m}{d} {o[1]}", err=True)
-#     click.echo("", err=True)
-#
-#     while True:
-#         length = len(options) - 1
-#         if multiple:
-#             msg = f'Enter selected numbers in range 0-{length}, separated by commas: '
-#         else:
-#             msg = f'Enter a number in range 0-{length}: '
-#         click.echo(msg, err=True, nl=False)
-#
-#         try:
-#             i = input()
-#         except KeyboardInterrupt:
-#             raise SystemExit()
-#         if not i and default:
-#             return default
-#         try:
-#             if multiple:
-#                 return set([options[int(x)][0] for x in i.split(',')])
-#             return options[int(i)][0]
-#         except (ValueError, IndexError):
-#             continue
+def pprint(*args, **kwargs):
+    def simple_text(val):
+        if not isinstance(val, prompt_toolkit.formatted_text.FormattedText):
+            val = prompt_toolkit.formatted_text.to_formatted_text(val, auto_convert=True)
+        return "".join(x[1] for x in val)
+
+    style = kwargs.pop("style", None)
+    isatty = sys.stdout.isatty()
+    if not isatty:
+        args = [simple_text(x) for x in args]
+        print(*args, **kwargs)
+    else:
+        prompt_toolkit.print_formatted_text(*args, style=style, **kwargs)
