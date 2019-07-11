@@ -105,6 +105,8 @@ class TreeSelect:
 
         result = []
         for i, visible_node in enumerate(self.visible_nodes):
+            depth = len(visible_node.depthinfo)
+
             style = ""
             if i == self.selected_index:
                 result.append(('[SetCursorPosition]', ''))
@@ -113,16 +115,21 @@ class TreeSelect:
             if not visible_node.isleaf:
                 style += " bold"
 
-            icon = "   "
+            icon = "── "
             if not visible_node.isleaf:
-                icon = " ▼ " if visible_node.isopen else " ▶ "
+                icon = "╴▼ " if visible_node.isopen else "╴▶ "
+            if depth == 0:
+                icon = "  "
+                if not visible_node.isleaf:
+                    icon = "▼ " if visible_node.isopen else "▶ "
 
-            depth = len(visible_node.depthinfo)
             decoration = "".join([
                 (" ├─" if k == depth - 1 else " │ ") if x else (" └─" if k == depth - 1 else "   ")
                 for k, x in enumerate(visible_node.depthinfo)
             ])
-            # decoration = "  " * depth
+            if decoration:
+                decoration = decoration[1:]
+
             result.append(("grey", f"{decoration}{icon}"))
             result.append((style, self.node_repr(visible_node.node)))
             result.append(('', '\n'))
@@ -239,12 +246,12 @@ if __name__ == '__main__':
     application.run()
     print(select.current_value)
 
-    select = SimpleSelect(["type", "random", "file"])
-    application = Application(
-        layout=Layout(select),
-        full_screen=True,
-        key_bindings=kb,
-        mouse_support=True,
-    )
-    application.run()
-    print(select.current_value)
+    # select = SimpleSelect(["type", "random", "file"])
+    # application = Application(
+    #     layout=Layout(select),
+    #     full_screen=True,
+    #     key_bindings=kb,
+    #     mouse_support=True,
+    # )
+    # application.run()
+    # print(select.current_value)
