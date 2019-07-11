@@ -8,20 +8,25 @@ from prompt_toolkit.mouse_events import MouseEventType
 
 
 class VisibleNode:
-    def __init__(self, node, isleaf, isopen, depthinfo):
+    def __init__(
+        self, node=None, isleaf=True, isopen=False, enterable=True,
+        selectable=True, depthinfo=[]
+    ):
         self.node = node
         self.isleaf = isleaf
         self.isopen = isopen
         self.depthinfo = depthinfo
+        self.enterable = enterable
+        self.selectable = selectable
 
 
 class TreeSelect:
     def __init__(self):
-        self.selected_index = 0
         self.visible_nodes = []
         self.open_set = set()
         self.update()
-        self.current_value = self.visible_nodes[self.selected_index].node
+        self.selected_index = self.next_enterable(0, 1)
+        assert self.selected_index is not None
 
         kb = KeyBindings()
 
@@ -36,23 +41,25 @@ class TreeSelect:
         @kb.add('pagedown')
         def pagedown(event):
             dl = len(self.window.render_info.displayed_lines)
-            self.selected_index = min(
+            candidate = self.next_enterable(min(
                 len(self.visible_nodes) - 1,
                 self.selected_index + dl
-            )
-            self.current_value = self.visible_nodes[self.selected_index].node
+            ), 1)
+            if candidate is not None:
+                self.selected_index = candidate
 
         @kb.add('pageup')
         def pageup(event):
             dl = len(self.window.render_info.displayed_lines)
-            self.selected_index = max(0, self.selected_index - dl)
-            self.current_value = self.visible_nodes[self.selected_index].node
+            candidate = self.next_enterable(max(0, self.selected_index - dl), -1)
+            if candidate is not None:
+                self.selected_index = candidate
 
         @kb.add("enter")
         def enter(event):
             visible_node = self.visible_nodes[self.selected_index]
-            if visible_node.isleaf:
-                return
+            if visible_node.selectable:
+                event.app.exit()
 
             if visible_node.isopen:
                 self.open_set.remove(visible_node.node)
@@ -77,18 +84,41 @@ class TreeSelect:
             scroll_offsets=ScrollOffsets(5, 5)
         )
 
+    @property
+    def current_value(self):
+        return self.visible_nodes[self.selected_index].node
+
+    def next_enterable(self, idx, dir):
+        while True:
+            if self.visible_nodes[idx].enterable:
+                return idx
+            idx += dir
+            if idx == (len(self.visible_nodes) if dir > 0 else -1):
+                return None
+
     def up(self):
-        self.selected_index = max(0, self.selected_index - 1)
-        self.current_value = self.visible_nodes[self.selected_index].node
+        candidate = self.next_enterable(max(0, self.selected_index - 1), -1)
+        if candidate is not None:
+            self.selected_index = candidate
 
     def down(self):
-        self.selected_index = min(len(self.visible_nodes) - 1, self.selected_index + 1)
-        self.current_value = self.visible_nodes[self.selected_index].node
+        candidate = self.next_enterable(
+            min(len(self.visible_nodes) - 1, self.selected_index + 1), 1
+        )
+        if candidate is not None:
+            self.selected_index = candidate
 
     def get_child_nodes(self, node=None):
-        """Returns a list of 2 tuples: (node, isleaf)."""
+        """Returns a list of 4 tuples: (node, isleaf, enterable, selectable)."""
         node = node or "root"
-        return [(f"{node}_leaf", True), (f"{node}_1", False), (f"{node}_2", False)]
+        return [
+            (f"{node}_leaf1", True, True, True),
+            (f"{node}_leaf1", True, True, False),
+            (f"{node}_leaf3", True, False, False),
+            (f"{node}_1", False, True, True),
+            (f"{node}_2", False, True, False),
+            (f"{node}_3", False, False, False),
+        ]
 
     def node_repr(self, node):
         return str(node)
@@ -96,8 +126,9 @@ class TreeSelect:
     def get_text_fragments(self):
         def mouse_handler(mouse_event):
             if mouse_event.event_type == MouseEventType.MOUSE_UP:
-                self.selected_index = mouse_event.position.y
-                self.current_value = self.visible_nodes[self.selected_index].node
+                idx = mouse_event.position.y
+                if self.visible_nodes[idx].enterable:
+                    self.selected_index = mouse_event.position.y
             elif mouse_event.event_type == MouseEventType.SCROLL_UP:
                 self.up()
             elif mouse_event.event_type == MouseEventType.SCROLL_DOWN:
@@ -124,13 +155,14 @@ class TreeSelect:
                     icon = "▼ " if visible_node.isopen else "▶ "
 
             decoration = "".join([
-                (" ├─" if k == depth - 1 else " │ ") if x else (" └─" if k == depth - 1 else "   ")
+                (" ├" if k == depth - 1 else " │") if x else (" └" if k == depth - 1 else "  ")
                 for k, x in enumerate(visible_node.depthinfo)
             ])
             if decoration:
                 decoration = decoration[1:]
 
-            result.append(("grey", f"{decoration}{icon}"))
+            result.append(("#606060", decoration))
+            result.append(("#606060", icon))
             result.append((style, self.node_repr(visible_node.node)))
             result.append(('', '\n'))
 
@@ -146,12 +178,16 @@ class TreeSelect:
         new_visible_nodes = []
 
         def add_children(child_nodes, depthinfo):
-            for i, (child_node, isleaf) in enumerate(child_nodes):
+            for i, (child_node, isleaf, enterable, selectable) in enumerate(child_nodes):
                 opened = child_node in self.open_set
                 hasnext = i + 1 < len(child_nodes)
                 _depthinfo = [] if depthinfo is None else (depthinfo + [hasnext])
                 new_visible_nodes.append(
-                    VisibleNode(child_node, isleaf, opened, _depthinfo)
+                    VisibleNode(
+                        node=child_node, isleaf=isleaf, isopen=opened,
+                        enterable=enterable, selectable=selectable,
+                        depthinfo=_depthinfo
+                    )
                 )
                 if opened:
                     child_nodes = self.get_child_nodes(child_node)
@@ -236,7 +272,9 @@ if __name__ == '__main__':
     def ctrlc(event):
         event.app.exit()
 
-    select = FileSelect("/host")
+    # select = FileSelect("/host")
+    # select = SimpleSelect(["type", "random", "file"])
+    select = TreeSelect()
     application = Application(
         layout=Layout(select),
         full_screen=True,
@@ -245,13 +283,3 @@ if __name__ == '__main__':
     )
     application.run()
     print(select.current_value)
-
-    # select = SimpleSelect(["type", "random", "file"])
-    # application = Application(
-    #     layout=Layout(select),
-    #     full_screen=True,
-    #     key_bindings=kb,
-    #     mouse_support=True,
-    # )
-    # application.run()
-    # print(select.current_value)
