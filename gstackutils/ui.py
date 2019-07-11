@@ -7,13 +7,21 @@ from prompt_toolkit.layout.margins import ScrollbarMargin
 from prompt_toolkit.mouse_events import MouseEventType
 
 
-class FileSelect:
-    def __init__(self, root):
-        self.root = root
-        self.curpos = 0
-        self.lines = None
-        self.opened = set()
-        self._update_lines()
+class VisibleNode:
+    def __init__(self, node, isleaf, isopen, depthinfo):
+        self.node = node
+        self.isleaf = isleaf
+        self.isopen = isopen
+        self.depthinfo = depthinfo
+
+
+class TreeSelect:
+    def __init__(self):
+        self.selected_index = 0
+        self.visible_nodes = []
+        self.open_set = set()
+        self.update()
+        self.current_value = self.visible_nodes[self.selected_index].node
 
         kb = KeyBindings()
 
@@ -28,29 +36,33 @@ class FileSelect:
         @kb.add('pagedown')
         def pagedown(event):
             dl = len(self.window.render_info.displayed_lines)
-            self.curpos = min(len(self.lines) - 1, self.curpos + dl)
+            self.selected_index = min(
+                len(self.visible_nodes) - 1,
+                self.selected_index + dl
+            )
+            self.current_value = self.visible_nodes[self.selected_index].node
 
         @kb.add('pageup')
         def pageup(event):
             dl = len(self.window.render_info.displayed_lines)
-            self.curpos = max(0, self.curpos - dl)
+            self.selected_index = max(0, self.selected_index - dl)
+            self.current_value = self.visible_nodes[self.selected_index].node
 
         @kb.add("enter")
         def enter(event):
-            isopen, isdir, name, absname, depth = self.lines[self.curpos]
-            if not isdir:
-                event.app.exit(absname)
+            visible_node = self.visible_nodes[self.selected_index]
+            if visible_node.isleaf:
+                return
+
+            if visible_node.isopen:
+                self.open_set.remove(visible_node.node)
             else:
-                if self.lines[self.curpos][0]:
-                    self.lines[self.curpos][0] = False
-                    self.opened.remove(self.lines[self.curpos][3])
-                else:
-                    self.lines[self.curpos][0] = True
-                    self.opened.add(self.lines[self.curpos][3])
-                self._update_lines()
+                self.open_set.add(visible_node.node)
+            visible_node.isopen = not visible_node.isopen
+            self.update()
 
         self.control = FormattedTextControl(
-            self._get_text_fragments,
+            self.get_text_fragments,
             key_bindings=kb,
             focusable=True,
             show_cursor=False
@@ -58,7 +70,7 @@ class FileSelect:
 
         self.window = Window(
             content=self.control,
-            style='class:file-select',
+            # style='class:file-select',
             right_margins=[
                 ScrollbarMargin(display_arrows=True),
             ],
@@ -66,44 +78,53 @@ class FileSelect:
         )
 
     def up(self):
-        self.curpos = max(0, self.curpos - 1)
+        self.selected_index = max(0, self.selected_index - 1)
+        self.current_value = self.visible_nodes[self.selected_index].node
 
     def down(self):
-        self.curpos = min(len(self.lines) - 1, self.curpos + 1)
+        self.selected_index = min(len(self.visible_nodes) - 1, self.selected_index + 1)
+        self.current_value = self.visible_nodes[self.selected_index].node
 
-    def _get_text_fragments(self):
+    def get_child_nodes(self, node=None):
+        """Returns a list of 2 tuples: (node, isleaf)."""
+        node = node or "root"
+        return [(f"{node}_leaf", True), (f"{node}_1", False), (f"{node}_2", False)]
+
+    def node_repr(self, node):
+        return str(node)
+
+    def get_text_fragments(self):
         def mouse_handler(mouse_event):
             if mouse_event.event_type == MouseEventType.MOUSE_UP:
-                self.curpos = mouse_event.position.y
+                self.selected_index = mouse_event.position.y
+                self.current_value = self.visible_nodes[self.selected_index].node
             elif mouse_event.event_type == MouseEventType.SCROLL_UP:
                 self.up()
             elif mouse_event.event_type == MouseEventType.SCROLL_DOWN:
                 self.down()
 
         result = []
-        for i, line in enumerate(self.lines):
-            isopened, isdir, name, absname, depthinfo = line
-
+        for i, visible_node in enumerate(self.visible_nodes):
             style = ""
-            if i == self.curpos:
+            if i == self.selected_index:
                 result.append(('[SetCursorPosition]', ''))
-                style = "reverse"
+                style += " reverse"
 
-            if isdir:
+            if not visible_node.isleaf:
                 style += " bold"
 
             icon = "   "
-            if isdir:
-                icon = " ▼ " if isopened else " ▶ "
+            if not visible_node.isleaf:
+                icon = " ▼ " if visible_node.isopen else " ▶ "
 
-            depth = len(depthinfo)
+            depth = len(visible_node.depthinfo)
             decoration = "".join([
                 (" ├─" if k == depth - 1 else " │ ") if x else (" └─" if k == depth - 1 else "   ")
-                for k, x in enumerate(depthinfo)
+                for k, x in enumerate(visible_node.depthinfo)
             ])
             # decoration = "  " * depth
             result.append(("grey", f"{decoration}{icon}"))
-            result.append((style, f"{line[2]}"))
+            result.append((style, self.node_repr(visible_node.node)))
             result.append(('', '\n'))
 
         result.pop()  # Remove last newline.
@@ -114,31 +135,30 @@ class FileSelect:
 
         return result
 
-    def _update_lines(self):
-        newlines = []
+    def update(self):
+        new_visible_nodes = []
 
-        def add_children(absname, depthinfo):
-            lst = sorted(os.listdir(absname))
-            for i, p in enumerate(lst):
-                _absname = os.path.join(absname, p)
-                _isdir = os.path.isdir(_absname)
-                _opened = _absname in self.opened
-                _di = i + 1 != len(lst)
-                # initial list: depthinfo is set to None
-                _depthinfo = depthinfo + [_di] if depthinfo is not None else []
-                newlines.append([_opened, _isdir, p, _absname, _depthinfo])
-                if _opened:
-                    add_children(_absname, _depthinfo)
+        def add_children(child_nodes, depthinfo):
+            for i, (child_node, isleaf) in enumerate(child_nodes):
+                opened = child_node in self.open_set
+                hasnext = i + 1 < len(child_nodes)
+                _depthinfo = [] if depthinfo is None else (depthinfo + [hasnext])
+                new_visible_nodes.append(
+                    VisibleNode(child_node, isleaf, opened, _depthinfo)
+                )
+                if opened:
+                    child_nodes = self.get_child_nodes(child_node)
+                    add_children(child_nodes, _depthinfo)
 
-        if not self.lines:
-            add_children(self.root, None)
-            self.lines = newlines
+        if not self.visible_nodes:
+            child_nodes = self.get_child_nodes()
+            add_children(child_nodes, None)
+            self.visible_nodes = new_visible_nodes
             return
 
         deldeeper = None
-        for i, line in enumerate(self.lines):
-            isopen, isdir, name, absname, depthinfo = line
-            depth = len(depthinfo)
+        for i, visible_node in enumerate(self.visible_nodes):
+            depth = len(visible_node.depthinfo)
 
             if deldeeper is not None:
                 if depth > deldeeper:
@@ -146,24 +166,57 @@ class FileSelect:
                 else:
                     deldeeper = None
 
-            newlines.append(line)
+            new_visible_nodes.append(visible_node)
 
-            if not isdir or not os.listdir(absname):
+            if visible_node.isleaf:
                 continue
 
-            lastline = len(self.lines) == i + 1
-            nextdeeper = False if lastline else len(self.lines[i + 1][4]) > depth
+            child_nodes = self.get_child_nodes(visible_node.node)
 
-            if isopen:
+            if not child_nodes:
+                continue
+
+            nextdeeper = False
+            if len(self.visible_nodes) > i + 1:
+                nextdeeper = len(self.visible_nodes[i + 1].depthinfo) > depth
+
+            if visible_node.isopen:
                 if not nextdeeper:
-                    add_children(absname, depthinfo)
+                    add_children(child_nodes, visible_node.depthinfo)
             else:
                 deldeeper = depth
 
-        self.lines = newlines
+        self.visible_nodes = new_visible_nodes
 
     def __pt_container__(self):
         return self.window
+
+
+class FileSelect(TreeSelect):
+    def __init__(self, root):
+        self.root = root
+        super().__init__()
+
+    def get_child_nodes(self, node=None):
+        node = node or (self.root, "")
+        dir = os.path.join(*node)  # node[0], node[1]
+        lst = sorted(os.listdir(dir))
+        return [((dir, x), not os.path.isdir(os.path.join(dir, x))) for x in lst]
+
+    def node_repr(self, node):
+        return node[1]
+
+
+class SimpleSelect(TreeSelect):
+    def __init__(self, values):
+        self.values = values
+        super().__init__()
+
+    def get_child_nodes(self, node=None):
+        return [(v, True) for v in self.values]
+
+    def node_repr(self, node):
+        return node
 
 
 if __name__ == '__main__':
@@ -176,12 +229,22 @@ if __name__ == '__main__':
     def ctrlc(event):
         event.app.exit()
 
+    select = FileSelect("/host")
     application = Application(
-        layout=Layout(
-            FileSelect(root="/host/")
-        ),
+        layout=Layout(select),
         full_screen=True,
         key_bindings=kb,
         mouse_support=True,
     )
-    print(application.run())
+    application.run()
+    print(select.current_value)
+
+    select = SimpleSelect(["type", "random", "file"])
+    application = Application(
+        layout=Layout(select),
+        full_screen=True,
+        key_bindings=kb,
+        mouse_support=True,
+    )
+    application.run()
+    print(select.current_value)
