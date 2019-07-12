@@ -8,14 +8,16 @@ from prompt_toolkit.mouse_events import MouseEventType
 
 
 class Node:
+    """Dataclass to store node objects."""
+
     def __init__(
-        self, node=None, key=None, repr=[("", "")], active_repr=[("", "")],
+        self, value=None, key=None, repr=[("", "")], active_repr=[("", "")],
         isleaf=True, force_open=False, enterable=True,
         selectable=True, depth=0,
         decoration_closed=[("", "")],
         decoration_open=[("", "")],
     ):
-        self.node = node
+        self.value = value
         self.key = key
         self.repr = repr
         self.active_repr = active_repr
@@ -49,13 +51,11 @@ class TreeSelect:
 
         @kb.add('pagedown')
         def pagedown(event):
-            dl = len(self.window.render_info.displayed_lines)
-            self.selected_index = self.next_enterable(self.selected_index + dl, 1)
+            self.down(len(self.window.render_info.displayed_lines))
 
         @kb.add('pageup')
         def pageup(event):
-            dl = len(self.window.render_info.displayed_lines)
-            self.selected_index = self.next_enterable(self.selected_index - dl, -1)
+            self.up(len(self.window.render_info.displayed_lines))
 
         @kb.add("enter")
         def enter(event):
@@ -69,6 +69,10 @@ class TreeSelect:
             curr = self.current_value
             not curr.isleaf and self.toggle(curr.key)
 
+        @kb.add('c')
+        def close_all(event):
+            self.close_all()
+
         self.control = FormattedTextControl(
             self.get_text_fragments,
             key_bindings=kb,
@@ -79,9 +83,7 @@ class TreeSelect:
         self.window = Window(
             content=self.control,
             # style='class:file-select',
-            right_margins=[
-                ScrollbarMargin(display_arrows=True),
-            ],
+            right_margins=[ScrollbarMargin(display_arrows=True)],
             scroll_offsets=ScrollOffsets(5, 5)
         )
 
@@ -101,33 +103,28 @@ class TreeSelect:
     def current_value(self):
         return self.visible_nodes[self.selected_index]
 
-    def isopen(self, node):
-        return (node.key in self.open_set) or node.force_open
+    def isopen(self, node, open_all=False):
+        if open_all and node.key not in self.open_set and not node.isleaf:
+            self.open_set.add(node.key)
+        return not node.isleaf and (node.key in self.open_set or node.force_open)
 
     def next_enterable(self, idx, dir):
+        """Search given direction first and backwards later."""
         cnt = len(self.visible_nodes)
         idx = min(max(idx, 0), cnt - 1)
-        i = idx
-        while True:
-            if self.visible_nodes[i].enterable:
-                return i
-            i += dir
-            if i == (cnt if dir > 0 else -1):
-                break
-        i = idx
-        while True:
-            if self.visible_nodes[i].enterable:
-                return i
-            i -= dir
-            if i == (cnt if dir < 0 else -1):
-                break
+        for _dir in (dir, -dir):
+            i = idx
+            while i >= 0 and i < cnt:
+                if self.visible_nodes[i].enterable:
+                    return i
+                i += _dir
         return None
 
-    def up(self):
-        self.selected_index = self.next_enterable(self.selected_index - 1, -1)
+    def up(self, n=1):
+        self.selected_index = self.next_enterable(self.selected_index - n, -1)
 
-    def down(self):
-        self.selected_index = self.next_enterable(self.selected_index + 1, 1)
+    def down(self, n=1):
+        self.selected_index = self.next_enterable(self.selected_index + n, 1)
 
     def get_child_nodes(self, node=None):
         raise NotImplemented()
@@ -144,16 +141,18 @@ class TreeSelect:
                 self.down()
 
         result = []
-        for i, visible_node in enumerate(self.visible_nodes):
-            active = i == self.selected_index
-            if self.isopen(visible_node):
-                decoration = visible_node.decoration_open
+        for i, node in enumerate(self.visible_nodes):
+            if self.isopen(node):
+                decoration = node.decoration_open
             else:
-                decoration = visible_node.decoration_closed
-            active_repr = visible_node.active_repr + [('[SetCursorPosition]', '')]
-
+                decoration = node.decoration_closed
             result.extend(decoration)
-            result.extend(active_repr if active else visible_node.repr)
+
+            if i == self.selected_index:
+                repr = node.active_repr + [('[SetCursorPosition]', '')]
+            else:
+                repr = node.repr
+            result.extend(repr)
             result.append(('', '\n'))
 
         result.pop()  # Remove last newline.
@@ -164,7 +163,7 @@ class TreeSelect:
 
         return result
 
-    def update(self):
+    def update(self, open_all=False):
         new_visible_nodes = []
 
         def add_children(child_nodes):
@@ -172,7 +171,7 @@ class TreeSelect:
                 if self.selected_index >= len(new_visible_nodes):
                     self.selected_index += 1
                 new_visible_nodes.append(node)
-                if self.isopen(node):
+                if self.isopen(node, open_all):
                     child_nodes = self.get_child_nodes(node)
                     add_children(child_nodes)
 
@@ -183,8 +182,8 @@ class TreeSelect:
             return
 
         deldeeper = None
-        for i, visible_node in enumerate(self.visible_nodes):
-            depth = visible_node.depth
+        for i, node in enumerate(self.visible_nodes):
+            depth = node.depth
 
             if deldeeper is not None:
                 if depth > deldeeper:
@@ -194,12 +193,12 @@ class TreeSelect:
                 else:
                     deldeeper = None
 
-            new_visible_nodes.append(visible_node)
+            new_visible_nodes.append(node)
 
-            if visible_node.isleaf:
+            if node.isleaf:
                 continue
 
-            child_nodes = self.get_child_nodes(visible_node)
+            child_nodes = self.get_child_nodes(node)
 
             if not child_nodes:
                 continue
@@ -208,7 +207,7 @@ class TreeSelect:
             if len(self.visible_nodes) > i + 1:
                 nextdeeper = self.visible_nodes[i + 1].depth > depth
 
-            if self.isopen(visible_node):
+            if self.isopen(node, open_all):
                 if not nextdeeper:
                     add_children(child_nodes)
             else:
@@ -229,7 +228,7 @@ class FileSelect(TreeSelect):
 
     def get_child_nodes(self, node=None):
         ret = []
-        root = self.root if node is None else node.node
+        root = self.root if node is None else node.value
         nodes = sorted(os.listdir(root))
 
         if node is None:
@@ -237,7 +236,7 @@ class FileSelect(TreeSelect):
                 abspath = os.path.join(root, f)
                 isdir = os.path.isdir(abspath)
                 ret.append(Node(
-                    node=abspath,
+                    value=abspath,
                     key=abspath,
                     repr=[("bold" if isdir else "", f)],
                     active_repr=[("bold reverse" if isdir else "reverse", f)],
@@ -264,7 +263,7 @@ class FileSelect(TreeSelect):
                     decoration.append(("grey", " └" if i + 1 == len(nodes) else " ├"))
 
                 ret.append(Node(
-                    node=abspath,
+                    value=abspath,
                     key=abspath,
                     repr=[("bold" if isdir else "", f)],
                     active_repr=[("bold reverse" if isdir else "reverse", f)],
@@ -304,14 +303,14 @@ if __name__ == '__main__':
     def ctrlc(event):
         event.app.exit()
 
-    @kb.add('c')
-    def close_all(event):
-        select.close_all()
+    # @kb.add('o')
+    # def open(event):
+    #     select.toggle("/host/.git")
+    #     select.toggle("/host/tests")
 
-    @kb.add('o')
-    def open(event):
-        select.toggle("/host/.git")
-        select.toggle("/host/tests")
+    # @kb.add('a')
+    # def open_all(event):
+    #     select.update(open_all=True)
 
     application = Application(
         layout=Layout(select),
