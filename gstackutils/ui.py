@@ -32,12 +32,12 @@ class Node:
 
 class TreeSelect:
     def __init__(self):
-        self.visible_nodes = []
-        self.open_set = set()
-        self.selected_index = 0  # update needs this
-        self.update()
-        self.selected_index = self.next_enterable(0, 1)
-        assert self.selected_index is not None
+        self._visible_nodes = []
+        self._open_set = set()
+        self._selected_index = 0  # update needs this
+        self._update()
+        self._selected_index = self._next_enterable(0, 1)
+        assert self._selected_index is not None
 
         kb = KeyBindings()
 
@@ -74,7 +74,7 @@ class TreeSelect:
             self.close_all()
 
         self.control = FormattedTextControl(
-            self.get_text_fragments,
+            self._get_text_fragments,
             key_bindings=kb,
             focusable=True,
             show_cursor=False
@@ -88,67 +88,67 @@ class TreeSelect:
         )
 
     def toggle(self, key):
-        if key in self.open_set:
-            self.open_set.remove(key)
+        if key in self._open_set:
+            self._open_set.remove(key)
         else:
-            self.open_set.add(key)
-        self.update()
+            self._open_set.add(key)
+        self._update()
 
     def close_all(self):
-        while self.open_set:
-            self.open_set.pop()
-            self.update()
+        while self._open_set:
+            self._open_set.pop()
+            self._update()
 
     @property
     def current_value(self):
-        return self.visible_nodes[self.selected_index]
+        return self._visible_nodes[self._selected_index]
 
-    def isopen(self, node, open_all=False):
-        if open_all and node.key not in self.open_set and not node.isleaf:
-            self.open_set.add(node.key)
-        return not node.isleaf and (node.key in self.open_set or node.force_open)
+    def _isopen(self, node, open_all=False):
+        if open_all and node.key not in self._open_set and not node.isleaf:
+            self._open_set.add(node.key)
+        return not node.isleaf and (node.key in self._open_set or node.force_open)
 
-    def next_enterable(self, idx, dir):
+    def _next_enterable(self, idx, dir):
         """Search given direction first and backwards later."""
-        cnt = len(self.visible_nodes)
+        cnt = len(self._visible_nodes)
         idx = min(max(idx, 0), cnt - 1)
         for _dir in (dir, -dir):
             i = idx
             while i >= 0 and i < cnt:
-                if self.visible_nodes[i].enterable:
+                if self._visible_nodes[i].enterable:
                     return i
                 i += _dir
         return None
 
     def up(self, n=1):
-        self.selected_index = self.next_enterable(self.selected_index - n, -1)
+        self._selected_index = self._next_enterable(self._selected_index - n, -1)
 
     def down(self, n=1):
-        self.selected_index = self.next_enterable(self.selected_index + n, 1)
+        self._selected_index = self._next_enterable(self._selected_index + n, 1)
 
     def get_child_nodes(self, node=None):
         raise NotImplemented()
 
-    def get_text_fragments(self):
+    def _get_text_fragments(self):
         def mouse_handler(mouse_event):
             if mouse_event.event_type == MouseEventType.MOUSE_UP:
                 idx = mouse_event.position.y
-                if self.visible_nodes[idx].enterable:
-                    self.selected_index = mouse_event.position.y
+                if self._visible_nodes[idx].enterable:
+                    self._selected_index = mouse_event.position.y
             elif mouse_event.event_type == MouseEventType.SCROLL_UP:
                 self.up()
             elif mouse_event.event_type == MouseEventType.SCROLL_DOWN:
                 self.down()
 
         result = []
-        for i, node in enumerate(self.visible_nodes):
-            if self.isopen(node):
+        for i, node in enumerate(self._visible_nodes):
+            if self._isopen(node):
                 decoration = node.decoration_open
             else:
                 decoration = node.decoration_closed
             result.extend(decoration)
 
-            if i == self.selected_index:
+            if i == self._selected_index:
                 repr = node.active_repr + [('[SetCursorPosition]', '')]
             else:
                 repr = node.repr
@@ -163,32 +163,32 @@ class TreeSelect:
 
         return result
 
-    def update(self, open_all=False):
+    def _update(self, open_all=False):
         new_visible_nodes = []
 
         def add_children(child_nodes):
             for node in child_nodes:
-                if self.selected_index >= len(new_visible_nodes):
-                    self.selected_index += 1
+                if self._selected_index >= len(new_visible_nodes):
+                    self._selected_index += 1
                 new_visible_nodes.append(node)
-                if self.isopen(node, open_all):
+                if self._isopen(node, open_all):
                     child_nodes = self.get_child_nodes(node)
                     add_children(child_nodes)
 
-        if not self.visible_nodes:
+        if not self._visible_nodes:
             child_nodes = self.get_child_nodes()
             add_children(child_nodes)
-            self.visible_nodes = new_visible_nodes
+            self._visible_nodes = new_visible_nodes
             return
 
         deldeeper = None
-        for i, node in enumerate(self.visible_nodes):
+        for i, node in enumerate(self._visible_nodes):
             depth = node.depth
 
             if deldeeper is not None:
                 if depth > deldeeper:
-                    if self.selected_index >= len(new_visible_nodes):
-                        self.selected_index -= 1
+                    if self._selected_index >= len(new_visible_nodes):
+                        self._selected_index -= 1
                     continue
                 else:
                     deldeeper = None
@@ -204,24 +204,26 @@ class TreeSelect:
                 continue
 
             nextdeeper = False
-            if len(self.visible_nodes) > i + 1:
-                nextdeeper = self.visible_nodes[i + 1].depth > depth
+            if len(self._visible_nodes) > i + 1:
+                nextdeeper = self._visible_nodes[i + 1].depth > depth
 
-            if self.isopen(node, open_all):
+            if self._isopen(node, open_all):
                 if not nextdeeper:
                     add_children(child_nodes)
             else:
                 deldeeper = depth
 
-        self.visible_nodes = new_visible_nodes
+        self._visible_nodes = new_visible_nodes
         # the selected index may have changed, find a correct position
-        self.selected_index = self.next_enterable(self.selected_index, 1)
+        self._selected_index = self._next_enterable(self._selected_index, 1)
 
     def __pt_container__(self):
         return self.window
 
 
 class FileSelect(TreeSelect):
+    DECORATION_REPLACE = {"└": " ", " └": "  ", "├": "│", " ├": " │"}
+
     def __init__(self, root):
         self.root = root
         super().__init__()
@@ -231,63 +233,54 @@ class FileSelect(TreeSelect):
         root = self.root if node is None else node.value
         nodes = sorted(os.listdir(root))
 
-        if node is None:
-            for i, f in enumerate(nodes):
-                abspath = os.path.join(root, f)
-                isdir = os.path.isdir(abspath)
-                ret.append(Node(
-                    value=abspath,
-                    key=abspath,
-                    repr=[("bold" if isdir else "", f)],
-                    active_repr=[("bold reverse" if isdir else "reverse", f)],
-                    isleaf=not isdir,
-                    force_open=False,
-                    depth=0,
-                    decoration_closed=[("grey", "▶ ")] if isdir else [("", "  ")],
-                    decoration_open=[("grey", "▼ ")] if isdir else [("", "  ")],
-                    enterable=abspath not in ("/host/.git", "/host/tests"),
-                    selectable=not isdir
-                ))
-        else:
-            for i, f in enumerate(nodes):
-                abspath = os.path.join(root, f)
-                isdir = os.path.isdir(abspath)
+        for i, f in enumerate(nodes):
+            abspath = os.path.join(root, f)
+            isdir = os.path.isdir(abspath)
+            depth = 0 if node is None else node.depth + 1
+            # the decoration
+            if node is None:
+                decoration = []
+            else:
                 decoration = node.decoration_closed[:-1]  # the last is the icon
                 if not decoration:  # the firt item is special
                     decoration.append(("grey", "└" if i + 1 == len(nodes) else "├"))
                 else:
                     # symbols need to be replaced on the previous level
-                    repl = {"└": " ", " └": "  ", "├": "│", " ├": " │"}
                     last_sty, last_str = decoration[-1]
-                    decoration[-1] = (last_sty, repl[last_str])
+                    decoration[-1] = (last_sty, self.DECORATION_REPLACE[last_str])
                     decoration.append(("grey", " └" if i + 1 == len(nodes) else " ├"))
+            # the icon
+            if node is None:
+                closed_icon = [("grey", "▶ ")] if isdir else [("", "  ")]
+                open_icon = [("grey", "▼ ")] if isdir else [("", "  ")]
+            else:
+                closed_icon = [("grey", "╴▶ " if isdir else "── ")]
+                open_icon = [("grey", "╴▼ " if isdir else "── ")]
 
-                ret.append(Node(
-                    value=abspath,
-                    key=abspath,
-                    repr=[("bold" if isdir else "", f)],
-                    active_repr=[("bold reverse" if isdir else "reverse", f)],
-                    isleaf=not isdir,
-                    force_open=False,
-                    depth=node.depth + 1,
-                    decoration_closed=decoration + [("grey", "╴▶ " if isdir else "── ")],
-                    decoration_open=decoration + [("grey", "╴▼ " if isdir else "── ")],
-                    enterable=abspath not in ("/host/.git", "/host/tests"),
-                    selectable=not isdir
-                ))
+            decoration_closed = decoration + closed_icon
+            decoration_open = decoration + open_icon
+
+            ret.append(Node(
+                value=abspath, key=abspath,
+                repr=[("bold" if isdir else "", f)],
+                active_repr=[("bold reverse" if isdir else "reverse", f)],
+                isleaf=not isdir, force_open=False, depth=depth,
+                decoration_closed=decoration_closed, decoration_open=decoration_open,
+                enterable=True, selectable=not isdir
+            ))
         return ret
 
 
-# class SimpleSelect(TreeSelect):
-#     def __init__(self, values):
-#         self.values = values
-#         super().__init__()
-#
-#     def get_child_nodes(self, node=None):
-#         return [(v, True) for v in self.values]
-#
-#     def node_repr(self, node):
-#         return node
+class SimpleSelect(TreeSelect):
+    def __init__(self, values):
+        self.values = values
+        super().__init__()
+
+    def get_child_nodes(self, node=None):
+        return [
+            Node(value=v, key=v, repr=[(" ", v)], active_repr=[("reverse", v)])
+            for v in self.values
+        ]
 
 
 if __name__ == '__main__':
@@ -297,20 +290,10 @@ if __name__ == '__main__':
     kb = KeyBindings()
     select = FileSelect("/host")
     # select = SimpleSelect(["type", "random", "file"])
-    # select = TreeSelect()
 
     @kb.add('c-c')
     def ctrlc(event):
         event.app.exit()
-
-    # @kb.add('o')
-    # def open(event):
-    #     select.toggle("/host/.git")
-    #     select.toggle("/host/tests")
-
-    # @kb.add('a')
-    # def open_all(event):
-    #     select.update(open_all=True)
 
     application = Application(
         layout=Layout(select),
