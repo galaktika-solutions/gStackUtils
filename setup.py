@@ -29,7 +29,7 @@ setup(
     packages=["gstackutils"],
     install_requires=[
         "pyopenssl >= 19.0.0",
-        "prompt_toolkit >= 2.0.9",
+        "urwid >= 2.0.1",
     ],
     extras_require={
         "dev": [
