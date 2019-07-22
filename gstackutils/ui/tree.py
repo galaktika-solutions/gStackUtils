@@ -66,15 +66,15 @@ class Node:
         return self.parent
 
     def open(self):
-        if self.isopen:
+        if self.isopen or self.isleaf:
             return
         self.isopen = True
         if not self.children:
             self.populate_children()
 
     def close(self, current_node):
-        if not self.isopen:
-            return
+        if not self.isopen or self.isleaf:
+            return current_node
         self.isopen = False
         # going upwards return the one that has only open ascendants
         candidate = current_node
@@ -86,6 +86,19 @@ class Node:
                 candidate = node
             node = node.parent
         return candidate
+
+    def open_all(self):
+        self.open()
+        for c in self.children:
+            c.open_all()
+
+    def close_all(self, current_node):
+        cn = current_node
+        if not self.isroot:
+            cn = self.close(cn)
+        for c in self.children:
+            cn = c.close_all(cn)
+        return cn
 
 
 class NodeWidget(urwid.Widget):
@@ -162,8 +175,7 @@ class NodeWidget(urwid.Widget):
         self.walker._modified()
 
     def close(self):
-        self.walker.focus = self.node.close(self.node)
-        self.walker._modified()
+        self.walker.set_focus(self.node.close(self.walker.focus))
 
     def keypress(self, size, key):
         if key in ("enter",):
@@ -174,6 +186,12 @@ class NodeWidget(urwid.Widget):
                     self.open()
             else:
                 return key
+        elif key == "o":
+            self.node.open_all()
+            self.walker._modified()
+        elif key == "c":
+            self.node.close_all(self.walker.focus)
+            self.walker.set_focus(self.node.close_all(self.walker.focus))
         else:
             return key
 
@@ -203,3 +221,10 @@ class TreeWalker(urwid.ListWalker):
     def numrows(self):
         """Must be implemented to be usable with the scrollbar."""
         return len(self.root)
+
+    def open_all(self):
+        self.root.open_all()
+        self._modified()
+
+    def close_all(self):
+        self.set_focus(self.root.close_all(self.focus))

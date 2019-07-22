@@ -21,7 +21,13 @@ class Walker(tree.TreeWalker):
 
 
 class FSSelectBox(urwid.ListBox):
-    pass
+    def keypress(self, size, key):
+        if key == "O":
+            self._body.open_all()
+        elif key == "C":
+            self._body.close_all()
+        else:
+            return super().keypress(size, key)
 
 
 if __name__ == "__main__":
