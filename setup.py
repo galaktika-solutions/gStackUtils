@@ -29,9 +29,7 @@ setup(
     packages=["gstackutils"],
     install_requires=[
         "click >= 7.0",
-        # "pick >= 0.6.4",
         "pyopenssl >= 19.0.0",
-        "psycopg2-binary >= 2.8",
     ],
     extras_require={
         "dev": [
@@ -42,6 +40,11 @@ setup(
             "wheel >= 0.32.3",
             "django >= 2.2",
             "uwsgi >= 2.0.18",
+            "django-sendgrid-v5 >= 0.8.0",
+            "django-improved-user >= 1.0.0",
+        ],
+        "default": [
+            "psycopg2-binary >= 2.8",
         ]
     },
     entry_points={

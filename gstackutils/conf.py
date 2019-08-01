@@ -26,7 +26,8 @@ VARIABLES = {
 class Command:
     def __init__(self, parser):
         self.parser = parser
-        self.arguments(parser)
+        if parser is not None:
+            self.arguments(parser)
 
     def arguments(self, parser):
         pass
@@ -82,9 +83,9 @@ class Config:
         for var, default in VARIABLES.items():
             setattr(self, var, self._get_meta(var, default))
 
-        stat = os.stat(".")
+        stat = os.stat("/host/")
         self.pu, self.pg = stat.st_uid, stat.st_gid  # project user & group
-        self.is_dev = os.path.isdir(".git")
+        self.is_dev = os.path.isdir("/host/.git")
         self.root_mode = os.getuid() == 0
         if root_mode and not self.root_mode:
             raise exceptions.PermissionDenied(f"Can not set root mode, uid: {os.getuid()}")
@@ -298,7 +299,7 @@ class Config:
         if develop:
             click.echo(f"GSTACK_CONFIG_MODULE = {self.config_module_var}")
             for var in VARIABLES:
-                click.echo(f"GSTACK_CONFIG_MODULE = {getattr(self, var)}")
+                click.echo(f"{var} = {getattr(self, var)}")
             click.echo()
 
         info = {}

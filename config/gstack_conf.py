@@ -9,3 +9,9 @@ class PYPI_CREDENTIALS(conf.Section):
     PYPI_PASSWORD = fields.StringField(secret=True, min_length=12)
 
     main = conf.Service(PYPI_PASSWORD=1000)
+
+
+class MAIL(conf.Section):
+    SENDGRID_API_KEY = fields.StringField(secret=True)
+
+    django = conf.Service(SENDGRID_API_KEY="django")

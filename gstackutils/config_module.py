@@ -1,5 +1,6 @@
 import argparse
 import sys
+import os
 
 from . import conf
 from . import fields
@@ -48,6 +49,7 @@ class POSTGRES_PASSWORDS(conf.Section):
 class DJANGO(conf.Section):
     DJANGO_SECRET_KEY = fields.StringField(secret=True)
     DJANGO_DEBUG = fields.BooleanField(default=False)
+    USE_UWSGI = fields.BooleanField(default=False)
 
     django = conf.Service(
         DJANGO_SECRET_KEY="django",
@@ -62,6 +64,8 @@ class TECHNICAL(conf.Section):
 def validate(config):
     if not config.is_dev and config.get("DJANGO_DEBUG"):
         raise exceptions.ValidationError("Django DEBUG must not be True in production")
+    if not config.is_dev and not config.get("USE_UWSGI"):
+        raise exceptions.ValidationError("In production uwsgi must be used")
 
 
 class Start_postgres(conf.Command):
@@ -145,11 +149,32 @@ class Start_nginx(conf.Command):
             fix=True
         )
 
+        conf = "/src/config/nginx.conf"
+        if args.config.get("USE_UWSGI"):
+            conf = "/src/config/nginx_uwsgi.conf"
         utils.cp(
-            "/src/config/nginx.conf", "/etc/nginx/nginx.conf",
+            conf, "/etc/nginx/nginx.conf",
             substitute=True, usr="nginx", grp="nginx", mode=0o600
         )
         run.run(["nginx"], exit=True)
+
+
+class Start_django(conf.Command):
+    """start django; development server or uwsgi"""
+
+    def cmd(self, args):
+        if args.config.get("USE_UWSGI"):
+            args.config.prepare("django")
+            du.wait_for_db(verbose=args.config.is_dev)
+            du.set_files_perms()
+            run.run(
+                ["uwsgi", "--ini", "config/uwsgi.conf"],
+                usr="django", stopsignal="SIGINT", exit=True
+            )
+
+        args.command = ["runserver", "0.0.0.0:8000"]
+        args.chown = False
+        Django_admin(None).cmd(args)
 
 
 class Django_admin(conf.Command):
@@ -162,8 +187,10 @@ class Django_admin(conf.Command):
     def cmd(self, args):
         args.config.prepare("django")
         du.wait_for_db(verbose=args.config.is_dev)
+        du.set_files_perms()
         # in development mode, we change some source folder's and files ownership
         # (recursively) to django and change it back later.
+        os.chdir("/src/django_project")
         if args.config.is_dev and args.chown:
             utils.path_fix("/src/django_project/", usr="django", grp="django")
             utils.path_fix("/src/static/", usr="django", grp="django")
@@ -187,3 +214,14 @@ class Backup(conf.Command):
 
     def cmd(self, args):
         du.backup(config=args.config, dbformat=args.dbformat, files=args.files)
+
+
+class Restore(conf.Command):
+    """restore existing backup"""
+
+    def arguments(self, parser):
+        parser.add_argument("-d", "--dumpfile")
+        parser.add_argument("-f", "--files", action="store_true")
+
+    def cmd(self, args):
+        du.restore(config=args.config, dumpfile=args.dumpfile, files=args.files)

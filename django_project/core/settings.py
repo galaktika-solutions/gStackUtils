@@ -2,8 +2,7 @@
 # import re
 # import logging.config
 #
-# from django.utils.translation import ugettext_lazy as _
-# from gdockutils import read_secret_from_file
+from django.utils.translation import ugettext_lazy as _
 from gstackutils.conf import Config
 
 
@@ -29,10 +28,16 @@ ALLOWED_HOSTS = config.get("HOST_NAMES")
 # EMAIL_USE_TLS = os.environ.get('EMAIL_USE_TLS', '').lower() == 'true'
 # EMAIL_USE_SSL = os.environ.get('EMAIL_USE_SSL', '').lower() == 'true'
 # EMAIL_TIMEOUT = 10
+
 # SERVER_EMAIL = os.environ.get('SERVER_EMAIL')
 # DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL')
 # EMAIL_SUBJECT_PREFIX = '[%s] ' % os.environ.get('HOST_NAME')
+
 # EMAIL_BACKEND = 'mailer.backend.DbBackend'
+EMAIL_BACKEND = "sendgrid_backend.SendgridBackend"
+SENDGRID_API_KEY = config.get("SENDGRID_API_KEY")
+# SENDGRID_SANDBOX_MODE_IN_DEBUG = False
+
 # MAILER_EMAIL_BACKEND = 'core.rewrite_email_backend.EmailBackend'
 # MAILER_LOCK_PATH = '/tmp/mailer_lock'
 
@@ -43,7 +48,7 @@ STATICFILES_FINDERS = (
     'django.contrib.staticfiles.finders.AppDirectoriesFinder',
 )
 
-MEDIA_ROOT = '/data/files/media/'
+MEDIA_ROOT = '/data/files/'
 MEDIA_URL = '/media/'
 
 ROOT_URLCONF = 'core.urls'
@@ -66,6 +71,9 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+
+    "demo.apps.DemoConfig",
+    "user.apps.UserConfig",
     # 'django_extensions',
     # 'mailer',
     # 'channels',
@@ -100,17 +108,16 @@ INSTALLED_APPS = [
 #     'MinimumLengthValidator', 'CommonPasswordValidator',
 #     'NumericPasswordValidator',
 # ]
-# auth_prefix = 'django.contrib.auth.password_validation.'
-# AUTH_PASSWORD_VALIDATORS = [
-#     {'NAME': 'django.contrib.auth.password_validation.' + v}
-#     for v in validators
-# ]
-# AUTH_PASSWORD_VALIDATORS.append({
-#     'NAME': auth_prefix + 'UserAttributeSimilarityValidator',
-#     'OPTIONS': {
-#         'user_attributes': ('email', 'full_name', 'short_name')
-#     },
-# })
+
+AUTH_PREFIX = 'django.contrib.auth.password_validation'
+AUTH_PASSWORD_VALIDATORS = [
+    {
+        'NAME': f"{AUTH_PREFIX}.UserAttributeSimilarityValidator",
+        'OPTIONS': {
+            'user_attributes': ('email', 'full_name', 'short_name')
+        },
+    },
+]
 
 TEMPLATES = [
     {
@@ -143,10 +150,10 @@ WSGI_APPLICATION = 'core.wsgi.application'
 # #         },
 # #     },
 # # }
-#
-# # Set up custom user model
-# AUTH_USER_MODEL = 'improveduser.User'
-#
+
+# Set up custom user model
+AUTH_USER_MODEL = 'user.User'
+
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
@@ -206,19 +213,19 @@ DATABASES = {
 #     ('excel', 'explorer.exporters.ExcelExporter'),
 #     ('json', 'explorer.exporters.JSONExporter')
 # ]
-#
-# # Internationalization
-# LANGUAGE_CODE = 'en-us'
-# TIME_ZONE = 'UTC'
-# USE_I18N = True
-# USE_L10N = True
-# USE_TZ = True
-#
-# LANGUAGES = (
-#     ('en', _('English')),
-#     ('hu', _('Hungarian')),
-# )
-#
+
+# Internationalization
+LANGUAGE_CODE = 'en-us'
+TIME_ZONE = 'UTC'
+USE_I18N = True
+USE_L10N = True
+USE_TZ = True
+
+LANGUAGES = (
+    ('en', _('English')),
+    ('hu', _('Hungarian')),
+)
+
 # LOCALE_PATHS = ('/data/files/locale/',)
 # MESSAGE_STORAGE = 'django.contrib.messages.storage.session.SessionStorage'
 #

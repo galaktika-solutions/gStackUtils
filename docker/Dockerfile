@@ -34,6 +34,8 @@ ENV GSTACK_CONFIG_MODULE config.gstack_conf
 RUN groupadd -r nginx --gid=443 && useradd -r -g nginx --uid=443 nginx
 RUN apt-get update && apt-get install -y nginx
 
+RUN apt-get update && apt-get install -y gettext
+
 # COPY --chown=django:django / /src
 
 WORKDIR /src

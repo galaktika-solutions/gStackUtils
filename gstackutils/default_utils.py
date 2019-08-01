@@ -211,8 +211,7 @@ def backup(dbformat="custom", files=True, config=None):
     if dbformat:
         wait_for_db(config=config)
         timestamp = time.strftime('%Y-%m-%d-%H-%M-%S', time.gmtime())
-        prefix = config.get("DB_BACKUP_PREFIX", default="gstack")
-        filename = f"{prefix}-db-{timestamp}.backup"
+        filename = f"db-{timestamp}.backup"
         if dbformat == 'plain':
             filename += '.sql'
         filename = os.path.join(backup_dir, 'db', filename)
@@ -235,37 +234,42 @@ def backup(dbformat="custom", files=True, config=None):
     set_backup_perms(config)
 
 
-# def restore(files, db_backup_file, conf=None, backup_dir=None, data_files_dir=None):
-#     config = conf or Config()
-#     backup_dir = backup_dir or config.env("GSTACK_BACKUP_DIR", "/host/backup")
-#     extraenv = {
-#         "PGHOST": "postgres",
-#         "PGUSER": "postgres",
-#         "PGDATABASE": "postgres",
-#         "PGPASSWORD": config.get("DB_PASSWORD_POSTGRES"),
-#     }
-#
-#     if db_backup_file:
-#         wait_for_db(conf=config)
-#         db_backup_file = os.path.join(backup_dir, 'db', db_backup_file)
-#         if db_backup_file.endswith('.backup'):
-#             cmd = [
-#                 'pg_restore', '-d', 'postgres', '--exit-on-error', '--verbose',
-#                 '--clean', '--create', db_backup_file
-#             ]
-#             run.run(cmd, extraenv=extraenv)
-#         elif db_backup_file.endswith('.backup.sql'):
-#             cmd = [
-#                 'psql', '-v', 'ON_ERROR_STOP=1',
-#                 '-f', db_backup_file
-#             ]
-#             run.run(cmd, extraenv=extraenv)
-#
-#     if files:
-#         data_files_dir = data_files_dir or config.env("GSTACK_DATA_FILES_DIR", "/data/files")
-#         cmd = [
-#             'rsync', '-v', '-a', '--delete', '--stats',
-#             os.path.join(backup_dir, 'files/'), data_files_dir
-#         ]
-#         run.run(cmd, log_command=True)
-#         set_files_perms(data_files_dir)
+def restore(dumpfile=None, files=True, config=None):
+    config = config or conf.Config()
+    backup_dir = "/host/backup/"
+    data_files_dir = "/data/files/"
+    root = "/host"
+    extraenv = {
+        "PGHOST": "postgres",
+        "PGUSER": "postgres",
+        "PGDATABASE": "postgres",
+        "PGPASSWORD": config.get("DB_PASSWORD_POSTGRES"),
+    }
+
+    if dumpfile:
+        dumpfile = os.path.join(root, dumpfile)
+        if not os.path.isfile(dumpfile):
+            raise exceptions.InvalidUsage("The dumpfile argument is invalid")
+
+        if dumpfile.endswith('.backup'):
+            cmd = [
+                'pg_restore', '-d', 'postgres', '--exit-on-error', '--verbose',
+                '--clean', '--create', dumpfile
+            ]
+            run.run(cmd, extraenv=extraenv)
+        elif dumpfile.endswith('.backup.sql'):
+            cmd = [
+                'psql', '-v', 'ON_ERROR_STOP=1',
+                '-f', dumpfile
+            ]
+            run.run(cmd, extraenv=extraenv)
+        else:
+            raise exceptions.InvalidUsage("Not a valid dump file")
+
+    if files:
+        cmd = [
+            'rsync', '-v', '-a', '--delete', '--stats',
+            os.path.join(backup_dir, 'files/'), data_files_dir
+        ]
+        run.run(cmd)
+        set_files_perms()
