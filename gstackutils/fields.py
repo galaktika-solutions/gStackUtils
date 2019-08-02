@@ -131,6 +131,9 @@ class ListMixin:
     def to_stream(self, value):
         return self.separator.join([super(ListMixin, self).to_stream(e) for e in value])
 
+    def reportable(self, value):
+        return f"[{super(ListMixin, self).reportable(value)}]"
+
 
 class StringField(MaxMinLengthMixin, ShowStreamOrMaskMixin, Field):
     def from_stream(self, s):
@@ -196,6 +199,10 @@ class EmailField(ShowStreamOrMaskMixin, Field):
         if value[0]:
             return f"{value[0]} <{value[1]}>"
         return value[1]
+
+
+class EmailListField(ListMixin, EmailField):
+    pass
 
 
 class SSLPrivateKeyField(Field):

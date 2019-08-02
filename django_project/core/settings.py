@@ -1,7 +1,7 @@
 # import os
 # import re
-# import logging.config
-#
+import logging.config
+
 from django.utils.translation import ugettext_lazy as _
 from gstackutils.conf import Config
 
@@ -15,11 +15,8 @@ DEBUG = config.get("DJANGO_DEBUG")
 
 ALLOWED_HOSTS = config.get("HOST_NAMES")
 
-# ADMINS = [
-#     re.match(r'^\s*([^<]*?)\s*<(.*)>.*', admin).groups()
-#     for admin in os.environ.get('ADMINS', '').split(',')
-# ]
-#
+ADMINS = config.get("ADMINS")
+
 # # Email related settings
 # EMAIL_HOST = os.environ.get('EMAIL_HOST')
 # EMAIL_PORT = int(os.environ.get('EMAIL_PORT', 0)) or None
@@ -29,9 +26,9 @@ ALLOWED_HOSTS = config.get("HOST_NAMES")
 # EMAIL_USE_SSL = os.environ.get('EMAIL_USE_SSL', '').lower() == 'true'
 # EMAIL_TIMEOUT = 10
 
-# SERVER_EMAIL = os.environ.get('SERVER_EMAIL')
+SERVER_EMAIL = config.get("SERVER_EMAIL")
 # DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL')
-# EMAIL_SUBJECT_PREFIX = '[%s] ' % os.environ.get('HOST_NAME')
+EMAIL_SUBJECT_PREFIX = '[%s] ' % ALLOWED_HOSTS[0]
 
 # EMAIL_BACKEND = 'mailer.backend.DbBackend'
 EMAIL_BACKEND = "sendgrid_backend.SendgridBackend"
@@ -255,39 +252,49 @@ LANGUAGES = (
 SESSION_COOKIE_SECURE = True
 CSRF_COOKIE_SECURE = True
 
-# LOGGING_CONFIG = None
-# log_config = {
-#     'version': 1,
-#     'disable_existing_loggers': False,
-#     'formatters': {
-#         'django': {
-#             'class': 'core.logging.GStackFormatter',
-#             'format': '|{asctime}|{name}|{levelname}|{message}',
-#             'datefmt': '%Y-%m-%d %H:%M:%S%z',
-#             'style': '{',
-#         },
-#     },
-#     'handlers': {
-#         'console': {
-#             'level': 'INFO',
-#             'formatter': 'django',
-#             'class': 'logging.StreamHandler',
-#         },
-#         'mail_admins': {
-#             'level': 'ERROR',
-#             'class': 'django.utils.log.AdminEmailHandler'
-#         }
-#     },
-#     'loggers': {
-#         'django': {
-#             'handlers': ['console'],
-#             'level': 'INFO',
-#         },
-#     }
-# }
+LOGGING_CONFIG = None
+log_config = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'django': {
+            # 'class': 'core.logging.GStackFormatter',
+            'format': '|{asctime}|{name}|{levelname}|{message}',
+            'datefmt': '%Y-%m-%d %H:%M:%S%z',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        # 'console': {
+        #     'level': 'INFO',
+        #     'formatter': 'django',
+        #     'class': 'logging.StreamHandler',
+        # },
+        "file": {
+            'level': "DEBUG",
+            "formatter": "django",
+            "class": "logging.handlers.RotatingFileHandler",
+            "filename": "/host/log/django/django.log",
+            "maxBytes": 2000,
+            "backupCount": 10,
+        },
+        'mail_admins': {
+            'level': 'ERROR',
+            'class': 'django.utils.log.AdminEmailHandler'
+        }
+    },
+    'loggers': {
+        'django': {
+            'handlers': ['file'],
+            'level': 'DEBUG',
+        },
+    }
+}
+
 # if (
 #     not DEBUG or
 #     os.environ.get('MAIL_ADMINS_ON_ERROR_IN_DEBUG', '').lower() == 'true'
 # ):
 #     log_config['loggers']['django.request'] = {'handlers': ['mail_admins']}
-# logging.config.dictConfig(log_config)
+
+logging.config.dictConfig(log_config)

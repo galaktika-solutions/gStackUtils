@@ -49,6 +49,8 @@ class POSTGRES_PASSWORDS(conf.Section):
 class DJANGO(conf.Section):
     DJANGO_SECRET_KEY = fields.StringField(secret=True)
     DJANGO_DEBUG = fields.BooleanField(default=False)
+    ADMINS = fields.EmailListField()
+    SERVER_EMAIL = fields.EmailField()
     USE_UWSGI = fields.BooleanField(default=False)
 
     django = conf.Service(
@@ -163,7 +165,11 @@ class Start_django(conf.Command):
     """start django; development server or uwsgi"""
 
     def cmd(self, args):
+        utils.path_fix("/host/log/", usr=args.config.pu, grp=args.config.pg)
+        utils.path_fix("/host/log/django/", usr="django", grp="django")
+
         if args.config.get("USE_UWSGI"):
+            utils.path_fix("/host/log/uwsgi/", usr="django", grp="django")
             args.config.prepare("django")
             du.wait_for_db(verbose=args.config.is_dev)
             du.set_files_perms()
