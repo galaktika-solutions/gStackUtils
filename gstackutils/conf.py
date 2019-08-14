@@ -135,15 +135,7 @@ class Config:
         return fi
 
     def get(self, name, default_exception=False, validate=False, stream=False):
-        # try:
-        #     value = self._get(name, default_exception)
-        # except (exceptions.ConfigMissingError, KeyError):
-        #     if default is not None:
-        #         return default
-        #     raise
         value = self._get(name, default_exception)
-        # if value is None:
-        #     return ifnone
 
         fi = self.get_field(name)
         if validate:
@@ -180,6 +172,8 @@ class Config:
         if fi.default is not None:
             if isinstance(fi.default, fields.Field):
                 ret = self._get(fi.default.name)
+            elif callable(fi.default):
+                ret = fi.default(self)
             else:
                 ret = fi.default
             if default_exception:

@@ -225,7 +225,12 @@ def cli():
         config.config_module,
         lambda x: (inspect.isclass(x) and issubclass(x, conf.Command))
     ):
-        cmd_name = k.lower().replace("_", "-")
+        cmd_name = "".join([
+            "-" + x.lower() if x.isalpha() and x == x.upper() else x
+            for x in k
+        ]).lstrip("-")
+        # backward compatibility
+        cmd_name = cmd_name.lower().replace("_", "-")
         help = inspect.getdoc(v)
         extra_parser = subcommands.add_parser(cmd_name, help=help)
         inst = v(extra_parser)

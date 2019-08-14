@@ -100,11 +100,6 @@ INSTALLED_APPS = [
 #     DEBUG_TOOLBAR_CONFIG = {
 #         'SHOW_TOOLBAR_CALLBACK': lambda x: DEBUG
 #     }
-#
-# validators = [
-#     'MinimumLengthValidator', 'CommonPasswordValidator',
-#     'NumericPasswordValidator',
-# ]
 
 AUTH_PREFIX = 'django.contrib.auth.password_validation'
 AUTH_PASSWORD_VALIDATORS = [
@@ -242,9 +237,9 @@ LANGUAGES = (
 # # File Upload max 50MB
 # DATA_UPLOAD_MAX_MEMORY_SIZE = 52428800
 # FILE_UPLOAD_MAX_MEMORY_SIZE = 52428800
-# FILE_UPLOAD_DIRECTORY_PERMISSIONS = 0o750
-# FILE_UPLOAD_PERMISSIONS = 0o640
-#
+FILE_UPLOAD_DIRECTORY_PERMISSIONS = 0o750
+FILE_UPLOAD_PERMISSIONS = 0o640
+
 # LOGIN_REDIRECT_URL = '/'
 # LOGOUT_REDIRECT_URL = '/'
 
