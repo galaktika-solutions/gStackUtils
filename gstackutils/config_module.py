@@ -135,7 +135,10 @@ class Start_postgres(conf.Command):
 
         utils.path_fix("/host/log/", usr=args.config.pu, grp=args.config.pg)
         utils.path_fix("/host/log/postgres/", usr="postgres", grp="postgres")
-        du.ensure_postgres(args.config, verbose=True, actions=actions)
+        du.ensure_postgres(
+            args.config, verbose=True, actions=actions,
+            cpenv={"LOG_FILE_MODE": "0644" if args.config.is_dev else "0600"}
+        )
         run.run(["postgres"], usr="postgres", exit=True)
 
 

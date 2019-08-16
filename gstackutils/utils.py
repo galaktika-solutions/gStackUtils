@@ -185,13 +185,13 @@ def cp(source, dest, substitute=False, env={}, usr=None, grp=None, mode=None):
             # not defined: default
             m = re.fullmatch(r"\{\{\s*([^-\s|]+)\s*\|\s*(.*?)\s*\}\}", pattern)
             if m:
-                repl = env.get(m.group(1))
+                repl = str(env.get(m.group(1)))
                 repl = repl if repl is not None else m.group(2)
                 newline = newline.replace(pattern, repl)
             # not defined: remove line
             m = re.fullmatch(r"\{\{\s*([^-\s|]+)\s*-\s*\}\}", pattern)
             if m:
-                repl = env.get(m.group(1))
+                repl = str(env.get(m.group(1)))
                 if repl is None:
                     skipline = True
                     continue
@@ -199,7 +199,7 @@ def cp(source, dest, substitute=False, env={}, usr=None, grp=None, mode=None):
             # not defined: delete
             m = re.fullmatch(r"\{\{\s*([^-\s|]+)\s*\}\}", pattern)
             if m:
-                repl = env.get(m.group(1))
+                repl = str(env.get(m.group(1)))
                 repl = repl if repl is not None else ""
                 newline = newline.replace(pattern, repl)
         if not skipline:

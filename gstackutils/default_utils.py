@@ -21,7 +21,7 @@ def pg_pass(user, password):
     return f"md5{md5(password + user)}"
 
 
-def ensure_postgres(config, actions=[], verbose=False):
+def ensure_postgres(config, actions=[], verbose=False, cpenv={}):
     def echo(msg):
         if verbose:
             click.echo(f"{msg} ...", nl=False)
@@ -55,7 +55,9 @@ def ensure_postgres(config, actions=[], verbose=False):
     dest = os.path.join(pgdata, "postgresql.conf")
     utils.cp(
         pg_conf_orig, dest, usr="postgres", grp="postgres", mode=0o600,
-        substitute=True, env={"LOG_FILE_MODE": "0644" if config.is_dev else "0600"}
+        substitute=True,
+        # env={"LOG_FILE_MODE": "0644" if config.is_dev else "0600"},
+        env=cpenv,
     )
     echodone()
 
