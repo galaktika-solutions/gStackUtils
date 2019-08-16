@@ -8,7 +8,7 @@ here = os.path.abspath(os.path.dirname(__file__))
 with io.open(os.path.join(here, "README.md"), encoding="utf-8") as f:
     long_description = "\n" + f.read()
 
-VERSION = "1.0.dev7"
+VERSION = "1.0.dev8"
 
 setup(
     name="gstackutils",
