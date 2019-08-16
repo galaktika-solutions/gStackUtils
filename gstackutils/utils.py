@@ -155,10 +155,10 @@ def path_check(
                 os.chmod(path, st_mode & mode)
 
 
-def path_fix(path, usr=None, grp=None):
+def path_fix(path, usr=None, grp=None, mode=None):
     path_check(
         path,
-        usr=usr, grp=grp, mode=None,
+        usr=usr, grp=grp, mode=mode,
         fix=True, recursive=True
     )
 
