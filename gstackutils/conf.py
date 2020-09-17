@@ -17,28 +17,30 @@ FLAGS = {
 }
 
 VARIABLES = {
-    "GSTACK_ENV_FILE": "/host/.env",
-    "GSTACK_SECRET_FILE": "/host/.secret.env",
+    "GSTACK_ENV_FILE": ".env",
+    "GSTACK_SECRET_FILE": ".secret.env",
     "GSTACK_SECRET_DIR": "/run/secrets/",
 }
 
-
-class Command:
-    def __init__(self, parser):
-        self.parser = parser
-        if parser is not None:
-            self.arguments(parser)
-
-    def arguments(self, parser):
-        pass
-
-    def cmd(self, args):
-        pass
+DEFAULT_CONFIG_MODULE = "gstackutils.config_module"
 
 
-class Section:
-    def __init__(self, config):
-        self.config = config
+# class Command:
+#     def __init__(self, parser):
+#         self.parser = parser
+#         if parser is not None:
+#             self.arguments(parser)
+#
+#     def arguments(self, parser):
+#         pass
+#
+#     def cmd(self, args):
+#         pass
+#
+#
+# class Section:
+#     def __init__(self, config):
+#         self.config = config
 
 
 class Service:
@@ -76,16 +78,16 @@ class Config:
     ENV_REGEX = re.compile(r"^\s*([^#].*?)=(.*)$")
 
     def __init__(self, config_module=None, root_mode=None):
-        config_module = config_module or os.environ.get("GSTACK_CONFIG_MODULE")
+        config_module = config_module or os.environ.get("GSTACK_CONFIG_MODULE") or DEFAULT_CONFIG_MODULE
         self.config_module_var = config_module
         self.config_module = importlib.import_module(config_module)
 
         for var, default in VARIABLES.items():
             setattr(self, var, self._get_meta(var, default))
 
-        stat = os.stat("/host/")
+        stat = os.stat(".")
         self.pu, self.pg = stat.st_uid, stat.st_gid  # project user & group
-        self.is_dev = os.path.isdir("/host/.git")
+        self.is_dev = os.path.isdir(".git")
         self.root_mode = os.getuid() == 0
         if root_mode and not self.root_mode:
             raise exceptions.PermissionDenied(f"Can not set root mode, uid: {os.getuid()}")
@@ -93,16 +95,16 @@ class Config:
             self.root_mode = False
 
         if not self.is_dev:
-            utils.path_check("/host/", usr=0, grp=0, mode=0o755, fix=False)
-        utils.path_check(
-            self.GSTACK_ENV_FILE, usr=self.pu, grp=self.pg, mode=0o644, fix=self.root_mode
-        )
-        utils.path_check(
-            self.GSTACK_SECRET_FILE, usr=self.pu, grp=self.pg, mode=0o600, fix=self.root_mode
-        )
-        utils.path_check(
-            self.GSTACK_SECRET_DIR, usr=self.pu, grp=self.pg, mode=0o755, fix=self.root_mode
-        )
+            utils.path_check(".", usr=0, grp=0, mode=0o755, fix=False)
+        # utils.path_check(
+        #     self.GSTACK_ENV_FILE, usr=self.pu, grp=self.pg, mode=0o644, fix=self.root_mode
+        # )
+        # utils.path_check(
+        #     self.GSTACK_SECRET_FILE, usr=self.pu, grp=self.pg, mode=0o600, fix=self.root_mode
+        # )
+        # utils.path_check(
+        #     self.GSTACK_SECRET_DIR, usr=self.pu, grp=self.pg, mode=0o755, fix=self.root_mode
+        # )
 
         self.fields = []
         self.field_names = set()
@@ -289,7 +291,8 @@ class Config:
             raise exceptions.ValidationError(errors)
 
     def inspect(self, develop=False):
-        self._root_mode_needed()
+        if not self.is_dev:
+            self._root_mode_needed()
         if develop:
             click.echo(f"GSTACK_CONFIG_MODULE = {self.config_module_var}")
             for var in VARIABLES:
@@ -374,17 +377,20 @@ class Config:
         regex = r"([^#^\s^=]+)="
         stale = []
         filepath = self.GSTACK_SECRET_FILE if secret else self.GSTACK_ENV_FILE
-        with open(filepath, "r") as f:
-            for l in f.readlines():
-                m = re.match(regex, l)
-                if m:
-                    confname = m.group(1)
-                    try:
-                        f = self.get_field(confname)
-                        if f.secret != secret:
+        try:
+            with open(filepath, "r") as f:
+                for l in f.readlines():
+                    m = re.match(regex, l)
+                    if m:
+                        confname = m.group(1)
+                        try:
+                            f = self.get_field(confname)
+                            if f.secret != secret:
+                                stale.append(confname)
+                        except KeyError:
                             stale.append(confname)
-                    except KeyError:
-                        stale.append(confname)
+        except FileNotFoundError:
+            pass
         return stale
 
     def prepare(self, service):

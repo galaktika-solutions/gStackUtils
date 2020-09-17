@@ -1,13 +1,7 @@
-/.secret.env
-/.env
-/.venv
-*.egg-info
-__pycache__
 /docs/build
 /.coverage
 /coverage_report
 /dist
-/backup
-/tests/to_delete
-/static
-/log
+/.venv
+*.egg-info
+__pycache__

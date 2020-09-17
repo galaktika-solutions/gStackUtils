@@ -239,4 +239,7 @@ def cli():
     args = parser.parse_args()
     if not hasattr(args, "func"):
         args.parser.error("No command given.")
-    args.func(args)
+    try:
+        args.func(args)
+    except exceptions.PermissionDenied as e:
+        args.parser.error(e)

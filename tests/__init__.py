@@ -1,7 +1,6 @@
 import unittest
 import os
 import shutil
-# import sys
 
 
 class CleanTestCase(unittest.TestCase):

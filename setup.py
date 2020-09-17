@@ -8,7 +8,7 @@ here = os.path.abspath(os.path.dirname(__file__))
 with io.open(os.path.join(here, "README.md"), encoding="utf-8") as f:
     long_description = "\n" + f.read()
 
-VERSION = "1.0.dev9"
+VERSION = "1.0.dev10"
 
 setup(
     name="gstackutils",
@@ -28,8 +28,8 @@ setup(
     license="MIT",
     packages=["gstackutils"],
     install_requires=[
-        "click >= 7.0",
         "pyopenssl >= 19.0.0",
+        "click >= 7.0"
     ],
     extras_require={
         "dev": [
@@ -38,13 +38,6 @@ setup(
             "sphinx_rtd_theme >= 0.4.2",
             "twine >= 1.12.1",
             "wheel >= 0.32.3",
-            "django >= 2.2",
-            "uwsgi >= 2.0.18",
-            "django-sendgrid-v5 >= 0.8.0",
-            "django-improved-user >= 1.0.0",
-        ],
-        "default": [
-            "psycopg2-binary >= 2.8",
         ]
     },
     entry_points={
