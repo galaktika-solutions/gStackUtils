@@ -1,36 +1,14 @@
-class GstackException(Exception):
-    """Base exception for all others."""
-    pass
-
-
-class InvalidUsage(GstackException):
-    pass
-
-
-class PermissionDenied(GstackException):
-    """Indicates insufficient privileges."""
-    pass
-
-
-class ImproperlyConfigured(GstackException):
+class ImproperlyConfigured(Exception):
     """Raised when the current setup (values, file locations etc.) does not meet
     one or more requirements.
     """
     pass
 
 
-class ConfigMissingError(Exception):
-    pass
-
-
-class DefaultUsedException(Exception):
-    pass
-
-
 NON_FIELD_ERRORS = '__all__'
 
 
-class ValidationError(GstackException):
+class ValidationError(Exception):
     """An error while validating data, stolen from Django..."""
     def __init__(self, message):
         """

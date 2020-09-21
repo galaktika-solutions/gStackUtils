@@ -1,29 +1,19 @@
 import unittest
-from io import StringIO
-import os
-
-from . import CleanTestCase
+import importlib
 
 from gstackutils import conf
+from . import CWDTestCase
 
 
-@unittest.skip("refactoring")
-class TestConf(CleanTestCase):
-    def test_inspect(self):
-        config = conf.Config()
-        with unittest.mock.patch('sys.stdout', new=StringIO()) as out:
-            config.inspect()
-            outlines = [l.strip() for l in out.getvalue().split("\n")]
-        self.assertTrue("STRING . something" in outlines)
+class TestConf(CWDTestCase):
+    cwd = "tests/fixtures"
 
-        config.set("USERNAME", "foo")
-        self.assertEqual(config.get("USERNAME"), "foo")
-        config.set("STRING", "x")
-        self.assertEqual(config.get("STRING"), "x")
-        config.set("PASSWORD", "bar123456789")
-        self.assertEqual(config.get("PASSWORD"), "bar123456789")
+    def test_testframework(self):
+        self.assertEqual(1, 1)
 
-        config = conf.Config(root_mode=False)
-        os.environ["USERNAME"] = "foo"
-        self.assertEqual(config.get("USERNAME"), "foo")
-        del os.environ["USERNAME"]
+    def test_load_config(self):
+        conf.Config("tests.fixtures.config_module")
+
+    def test_set_value(self):
+        c = conf.Config("tests.fixtures.config_module")
+        c.set("STRING", "hello")

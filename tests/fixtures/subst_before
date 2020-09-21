@@ -1,6 +1,0 @@
-Kept as is.
-X is |{{ X }}|, Y is |{{ Y | not default }}|.
-No value, so substitute |{{ Z | default value }}|. But X is still |{{ X }}|!
-This line is deleted {{ THREE - }}.
-This line is not deleted {{ X - }}.
-Done.
