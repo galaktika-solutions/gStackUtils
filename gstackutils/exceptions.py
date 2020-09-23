@@ -8,6 +8,11 @@ class ImproperlyConfigured(Exception):
 NON_FIELD_ERRORS = '__all__'
 
 
+class DefaultException(Exception):
+    def __init__(self, default):
+        self.default = default
+
+
 class ValidationError(Exception):
     """An error while validating data, stolen from Django..."""
     def __init__(self, message):

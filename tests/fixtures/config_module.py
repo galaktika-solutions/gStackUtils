@@ -8,15 +8,21 @@ FILES = [config_file]
 
 class EXAMPLE_CONFIG(conf.Section):
     STRING = fields.StringField(
+        config_file,
         default="default value",
-        file=config_file,
         hide=False,
         services=[],
     )
+    SECRET = fields.StringField(
+        config_file,
+        hide=True,
+        default="supersecret"
+    )
     HOST_NAMES = fields.StringListField(
+        config_file,
         default=["gstack.localhost"],
-        validators=(lambda x: [validators.HostNameValidator()(h) for h in x],),
-        file=config_file,
+        min_items=3,
+        validators=(validators.HostNameValidator(),),
         hide=False,
         services=[
             conf.Service("django", path="", user=0, group=0, mode=0o400),

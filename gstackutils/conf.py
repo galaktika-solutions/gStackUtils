@@ -51,13 +51,34 @@ class Config:
         if not file.path.is_file():
             open(file.path, "a").close()
 
-    def set(self, name, value):
+    def get_from_file(self, name, to_stream=False, validate=True):
+        section = self.fields[name]
+        field = section.fields[name]
+
+        with open(field.file.path, "r") as f:
+            lines = [l for l in f.readlines() if l]
+        for l in lines:
+            m = self.ENV_REGEX.match(l)
+            if m and m.group(1) == name:
+                value = field.from_storage(m.group(2))
+                if validate:
+                    field.validate(value)
+                if to_stream:
+                    return field.to_stream(value)
+                return value
+        raise exceptions.DefaultException(field.default)
+
+
+    def set(self, name, value, from_stream=False, validate=True):
         section = self.fields[name]
         field = section.fields[name]
         self.ensure_file(field.file)
 
         if value is not None:
-            # fi.validate(value)  # do we want to validate here
+            if from_stream:
+                value = field.from_stream(value)
+            if validate:
+                field.validate(value)
             storagestr = field.to_storage(value)
             actualline = f"{name}={storagestr}\n"
 
