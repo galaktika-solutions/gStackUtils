@@ -3,5 +3,7 @@
 /coverage_report
 /dist
 /.venv
+gstack_conf.py
+.credentials
 *.egg-info
 __pycache__

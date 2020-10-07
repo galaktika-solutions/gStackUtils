@@ -13,6 +13,18 @@ class DefaultException(Exception):
         self.default = default
 
 
+class InvalidUsage(Exception):
+    pass
+
+
+class ConfigMissingError(Exception):
+    pass
+
+
+class ConfigNotSetError(Exception):
+    pass
+
+
 class ValidationError(Exception):
     """An error while validating data, stolen from Django..."""
     def __init__(self, message):

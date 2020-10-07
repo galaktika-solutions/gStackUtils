@@ -8,7 +8,7 @@ here = os.path.abspath(os.path.dirname(__file__))
 with io.open(os.path.join(here, "README.md"), encoding="utf-8") as f:
     long_description = "\n" + f.read()
 
-VERSION = "1.0.dev10"
+VERSION = "1.0.dev11"
 
 setup(
     name="gstackutils",
@@ -29,7 +29,8 @@ setup(
     packages=["gstackutils"],
     install_requires=[
         "pyopenssl >= 19.0.0",
-        "click >= 7.0"
+        "click >= 7.0",
+        "rich >= 7.1.0"
     ],
     extras_require={
         "dev": [

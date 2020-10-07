@@ -1,5 +1,4 @@
 import random
-import os
 import datetime
 
 from OpenSSL import crypto, SSL
@@ -63,13 +62,14 @@ def generate(names, ips=None, cakeyfile=None, cacertfile=None):
     if cakeyfile is None and cacertfile:
         raise exceptions.InvalidUsage("cacertfile wihtout cakeyfile")
 
-    os.chdir("/host")
     cn = names[0]
 
     if cakeyfile:
-        with open(cakeyfile, "rb") as f:
-            buf = f.read()
+        buf = cakeyfile.read()
+        try:
             cakey = crypto.load_privatekey(SSL.FILETYPE_PEM, buf)
+        except Exception as e:
+            raise ValueError("invalid CA key")
     else:
         cakey = crypto.PKey()
         cakey.generate_key(crypto.TYPE_RSA, 2048)
@@ -77,11 +77,12 @@ def generate(names, ips=None, cakeyfile=None, cacertfile=None):
             f.write(crypto.dump_privatekey(SSL.FILETYPE_PEM, cakey))
 
     if cacertfile:
-        with open(cacertfile, "rb") as f:
-            buf = f.read()
+        buf = cacertfile.read()
+        try:
             cacert = crypto.load_certificate(SSL.FILETYPE_PEM, buf)
+        except Exception as e:
+            raise ValueError("invalid CA certificate")
     else:
-        # cacert = make_cert(f"{cn}_CA")
         cacert = make_cert(f"{cn}")
         cacert.set_issuer(cacert.get_subject())
         cacert.set_pubkey(cakey)

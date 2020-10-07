@@ -45,9 +45,9 @@ class MaxValueValidator:
         self.max = max
 
     def __call__(self, value):
-        if value > self.min:
+        if value > self.max:
             raise exceptions.ValidationError(
-                f"value should not be greater than {self.min}"
+                f"value should not be greater than {self.max}"
             )
 
 

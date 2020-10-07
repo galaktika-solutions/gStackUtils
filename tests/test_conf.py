@@ -6,7 +6,7 @@ from . import CWDTestCase
 
 
 class TestConf(CWDTestCase):
-    cwd = "tests/fixtures"
+    cwd = "tests/temp"
 
     def test_testframework(self):
         self.assertEqual(1, 1)
@@ -17,3 +17,4 @@ class TestConf(CWDTestCase):
     def test_set_value(self):
         c = conf.Config("tests.fixtures.config_module")
         c.set("STRING", "hello")
+        self.assertEqual(c.retrieve("STRING"), "hello")

@@ -8,3 +8,8 @@ init:
 test:
 		coverage run -m unittest; \
 		coverage report
+
+distribute:
+	rm -rf dist
+	python setup.py sdist
+	TWINE_USERNAME="$$(gstack conf retrieve username)" TWINE_PASSWORD="$$(gstack conf retrieve password)" twine upload dist/*
