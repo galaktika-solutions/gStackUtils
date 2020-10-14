@@ -3,7 +3,7 @@ from rich import console, text, table, box, padding, print
 
 def print_info(info, verbosity=0):
     cons = console.Console()
-    for section in info:
+    for section in info["sections"]:
         cons.print()
         cons.print(text.Text(section["section"]), style="bold")
         if verbosity:

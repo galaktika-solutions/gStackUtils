@@ -3,7 +3,6 @@ from gstackutils import conf, fields, validators, exceptions
 
 # Config files
 config_file = conf.File(path=".conf")
-FILES = [config_file]
 
 
 class EXAMPLE_CONFIG(conf.Section):
@@ -27,11 +26,7 @@ class EXAMPLE_CONFIG(conf.Section):
         min_items=3,
         validators=(validators.HostNameValidator(),),
         hide=False,
-        services=[
-            conf.Service("django", path="", user=0, group=0, mode=0o400),
-            conf.Service("nginx", path="", user=0, group=0, mode=0o400),
-            conf.Service("other", environ=True)
-        ]
+        services=[]
     )
 
 def not_5(value):
@@ -61,11 +56,7 @@ class ANOTHER(conf.Section):
         min_items=3,
         validators=(validators.HostNameValidator(),),
         hide=False,
-        services=[
-            conf.Service("django", path="", user=0, group=0, mode=0o400),
-            conf.Service("nginx", path="", user=0, group=0, mode=0o400),
-            conf.Service("other", environ=True)
-        ]
+        services=[]
     )
     bool = fields.BooleanField(config_file)
     file = fields.FileField(config_file)

@@ -25,6 +25,10 @@ class ConfigNotSetError(Exception):
     pass
 
 
+class EncryptionKeyError(Exception):
+    pass
+
+
 class ValidationError(Exception):
     """An error while validating data, stolen from Django..."""
     def __init__(self, message):

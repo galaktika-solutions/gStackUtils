@@ -28,13 +28,12 @@ class Section:
 
 
 class Service:
-    def __init__(self, name, path="", user=None, group=None, mode=None, environ=False):
+    def __init__(self, name, path="", user=None, group=None, mode=None):
         self.name = name
         self.path = path
         self.user = user
         self.group = group
         self.mode = mode
-        self.environ = environ
 
 
 class Config:
@@ -68,7 +67,7 @@ class Config:
         else:
             return section, field
 
-    def retrieve(self, name, to_stream=False, validate=True):
+    def retrieve(self, name, to_stream=False, validate=True, key=None):
         _, field = self.get_field(name)
 
         try:
@@ -80,7 +79,7 @@ class Config:
         for l in lines:
             m = self.ENV_REGEX.match(l)
             if m and m.group(1) == name:
-                value = field.from_storage(m.group(2))
+                value = field.from_storage(m.group(2), key=key)
                 if validate:
                     field.validate(value)
                 if to_stream:
@@ -90,8 +89,12 @@ class Config:
             raise exceptions.ConfigNotSetError(f"Config not set: {name}")
         raise exceptions.DefaultException(field.default)
 
-    def set(self, name, value, from_stream=False, validate=True):
+    def set(self, name, value, from_stream=False, validate=True, key=None):
         _, field = self.get_field(name)
+
+        if field.encrypt:
+            self.info(key, exclude=name)
+
         self.ensure_file(field.file)
 
         if value is not None:
@@ -99,7 +102,7 @@ class Config:
                 value = field.from_stream(value)
             if validate:
                 field.validate(value)
-            storagestr = field.to_storage(value)
+            storagestr = field.to_storage(value, key=key)
             actualline = f"{name}={storagestr}\n"
 
         newlines = []
@@ -125,26 +128,24 @@ class Config:
     def provide(self, service, name=None, validate=True):
         pass
 
-    def use(self, service, name):
-        pass
-
-    def info(self, verbosity=0):
-        ret = []
+    def info(self, key=None, exclude=None):
+        ret = {"sections": []}
         for s in self.sections:
             section_info = {}
-            ret.append(section_info)
+            ret["sections"].append(section_info)
             section_info["section"] = s.__class__.__name__
             section_info["help_text"] = format_docstring(s.__class__.__doc__)
             section_info["config_items"] = config_items = []
-            # cons.print(s.info(verbosity))
             for fn, fi in s.fields.items():
+                if exclude and fn == exclude:
+                    continue
                 config_info = {}
                 config_items.append(config_info)
                 config_info["field"] = fn
                 config_info["help_text"] = fi.help_text
                 config_info["errors"] = []
                 try:
-                    value = self.retrieve(fn, validate=False)
+                    value = self.retrieve(fn, validate=False, key=key)
                 except exceptions.DefaultException as e:
                     config_info["reportable"] = fi.reportable(e.default)
                     config_info["status"] = "DEFAULT"
@@ -164,7 +165,55 @@ class Config:
                     else:
                         config_info["reportable"] = fi.reportable(value)
                         config_info["status"] = "OK"
+
+        ret["stale"] = self.stale()
         return ret
 
+    def delete(self, name, path=None):
+        if path is None:
+            path = self.get_field(name)[1].file.path
+        try:
+            with open(path, "r") as f:
+                lines = [l for l in f.readlines() if l]
+        except FileNotFoundError:
+            return
+
+        newlines = []
+        with open(path, "r") as f:
+            lines = [l for l in f.readlines() if l]
+        for l in lines:
+            m = self.ENV_REGEX.match(l)
+            if m and m.group(1) == name:
+                pass
+            else:
+                newlines.append(l)
+        with open(path, "w") as f:
+            f.writelines(newlines)
+
+    def stale(self):
+        ret = {}
+        for fn, s in self.fields.items():
+            path = s.fields[fn].file.path
+            if path not in ret:
+                ret[path] = {"file": str(path), "stale": []}
+
+        for path in ret:
+            try:
+                with open(path, "r") as f:
+                    lines = [l for l in f.readlines() if l]
+            except FileNotFoundError:
+                lines = []
+
+            for l in lines:
+                m = self.ENV_REGEX.match(l)
+                if m and m.group(1):
+                    name = m.group(1)
+                    if name not in self.fields or self.fields[name].fields[name].file.path != path:
+                        ret[path]["stale"].append(name)
+
+        return [v for v in ret.values() if v["stale"]]
+
     def remove_stale(self):
-        pass
+        for paths in self.stale():
+            for stale_name in paths["stale"]:
+                self.delete(stale_name, paths["file"])

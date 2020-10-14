@@ -30,7 +30,7 @@ setup(
     install_requires=[
         "pyopenssl >= 19.0.0",
         "click >= 7.0",
-        "rich >= 7.1.0"
+        "rich >= 7.1.0",
     ],
     extras_require={
         "dev": [

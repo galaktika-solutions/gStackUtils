@@ -1,6 +1,8 @@
 import base64
 from email import utils as email_utils
 
+from .encryption import encrypt, decrypt
+
 from . import exceptions
 from . import validators
 
@@ -12,16 +14,21 @@ class Field:
     default_validators = []
 
     def __init__(
-        self, file, hide=False, b64=False, default=None, help_text=None,
-        validators=(), services=[]
+        self, file, hide=False, b64=False, encrypt=False, default=None,
+        environment=False, help_text=None, validators=(), services=[]
     ):
         self.file = file
         self.hide = hide
         self.b64 = b64
+        self.encrypt = encrypt
         self.default = default
+        self.environment = environment
         self.help_text = help_text
         self.validators = [*self.default_validators, *validators]
         self.services = services
+
+        if environment and (self.binary or (self.default is not None) or self.hide or self.b64 or self.encrypt):
+            raise exceptions.ImproperlyConfigured("Environment type fields must not be binary, hidden, b64 or encrypted and must not have default value")
 
     def from_stream(self, bytes_or_str):
         if self.binary:
@@ -49,8 +56,12 @@ class Field:
     def to_bytes(self, value):
         raise NotImplementedError()
 
-    def from_storage(self, storage_str):
-        if self.hide or self.binary or self.b64:
+    def from_storage(self, storage_str, key=None):
+        if self.encrypt:
+            stream = decrypt(storage_str.encode(), key)
+            if not self.binary:
+                stream = stream.decode()
+        elif self.hide or self.binary or self.b64:
             stream = base64.b64decode(storage_str)
             if not self.binary:
                 stream = stream.decode()
@@ -58,9 +69,11 @@ class Field:
             stream = storage_str
         return self.from_stream(stream)
 
-    def to_storage(self, value):
+    def to_storage(self, value, key=None):
         stream = self.to_stream(value)
-        if self.hide or self.binary or self.b64:
+        if self.encrypt:
+            return encrypt(stream if self.binary else stream.encode(), key).decode()
+        elif self.hide or self.binary or self.b64:
             return base64.b64encode(
                 stream if self.binary else stream.encode()
             ).decode()
